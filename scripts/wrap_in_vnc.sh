@@ -65,7 +65,7 @@ else
     echo "HOME_SEED_FILE not set, using a clean fake home"
 fi
 
-Xvnc $DISPLAY -localhost -SecurityTypes None &
+Xvnc $DISPLAY -localhost -SecurityTypes None -auth THISAUTHFILEDOESNTEXISTWHICHMAKESITWORKBELIEVEME &
 
 sleep 1
 

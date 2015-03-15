@@ -179,7 +179,6 @@ if [ ! -e $VENV/inst/lib/libevent.so ]; then
     make install
     popd
 fi
-
 if [ ! -e $VENV/bin/python ]; then
     #virtualenv   --no-site-packages --clear $VENV
     virtualenv -p $VENV/inst/bin/python --no-site-packages --system-site-packages --clear $VENV
@@ -188,8 +187,9 @@ fi
 
 mkdir -p $VENV/src
 
-source $VENV/bin/activate
+virtualenv $VENV
 
+source $VENV/bin/activate
 
 # Install apsw manually as it is not available trough pip.
 if [ ! -e $VENV/lib/python2.*/site-packages/apsw.so ]; then
@@ -203,10 +203,11 @@ if [ ! -e $VENV/lib/python2.*/site-packages/apsw.so ]; then
     cd apsw*/
     # Fix a bug on apsw's setup.py
     sed -i "s/part=part.split('=', 1)/part=tuple(part.split('=', 1))/" setup.py
+    sed -i 's/page=urlopen(url).read()/page=urlopen(url.replace("https:\/\/", "http:\/\/")).read()/' setup.py
     python setup.py fetch --missing-checksum-ok --all --version=3.7.17 build --enable-all-extensions install # test # running the tests makes it segfault...
     popd
 fi
-
+echo "HELLO WORLD :D"
 # M2Crypto needs OpenSSL with EC support, but RH/Fedora doesn't provide it.
 # We install it in a different place so it will not end up in LD_LIBRARY_PATH
 # affecting the system's ssh binary.
@@ -268,19 +269,19 @@ python -c "from M2Crypto import EC"
 
 # Build libboost
 # TODO(vladum): If you use this, see TODO about libtorrent's bug.
- if [ ! -e $VENV/lib/libboost_wserialization.so ]; then
-     pushd $VENV/src
-     BOOST_TAR=boost_1_54_0.tar.bz2
-    if [ ! -e $BOOST_TAR ]; then
-        wget http://netcologne.dl.sourceforge.net/project/boost/boost/1.54.0/$BOOST_TAR
-    fi
-    tar xavf $BOOST_TAR
-     cd boost*/
-     ./bootstrap.sh
-     #./b2 -j$(grep process /proc/cpuinfo | wc -l) --prefix=$VENV install
-     ./bjam -j$(grep process /proc/cpuinfo | wc -l) threading=multi -no_single -no_static --without-mpi --prefix=$VENV install
-     popd
- fi
+# if [ ! -e $VENV/lib/libboost_python-py27.so.1.54.0 ]; then
+#     pushd $VENV/src
+#     BOOST_TAR=boost_1_54_0.tar.bz2
+#    if [ ! -e $BOOST_TAR ]; then
+#        wget http://netcologne.dl.sourceforge.net/project/boost/boost/1.54.0/$BOOST_TAR
+#    fi
+#    tar xavf $BOOST_TAR
+#     cd boost*/
+#     ./bootstrap.sh
+#     #./b2 -j$(grep process /proc/cpuinfo | wc -l) --prefix=$VENV install
+#     ./bjam -j$(grep process /proc/cpuinfo | wc -l) threading=multi -no_single -no_static --without-mpi --prefix=$VENV install
+#     popd
+# fi
 
 
 #
@@ -303,7 +304,8 @@ if [ ! -e $VENV/lib/python*/site-packages/libtorrent.so ]; then
     # Using a newer Boost requires patching libtorrent, so, for now, we will use
     # the system's Boost, which is 1.41.0 on DAS4 and works fine.
     export BOOST_ROOT=$VENV/src/boost_*/
-    ./configure  --with-boost-system=mt --with-boost=$VENV --with-boost-lib=$VENV/lib --enable-python-binding --prefix=$VENV
+    #./configure --with-boost-system=mt --with-boost=$VENV --with-boost-lib=$VENV/lib --enable-python-binding --prefix=$VENV
+    ./configure  --with-boost-libdir=/usr/lib/x86_64-linux-gnu --with-boost=$VENV --with-boost-lib=$VENV/lib --enable-python-binding --prefix=$VENV
     make -j$(grep process /proc/cpuinfo | wc -l) || make
     make install
     cd $VENV/lib
