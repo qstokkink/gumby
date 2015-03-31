@@ -1,0 +1,34 @@
+@0:0 set_master_member 3081a7301006072a8648ce3d020106052b810400270381920004029fcf95d6baf026363a091950aa473196bd058a6d7342f2d77ddb61b8881982477a92e05a5bc81c0eaf40312d68f733f6ff6030b3ff8ae206b737bedefaa03d25c9398b500b0b1905f3982920cf29d17f6c21c1e4e88ad3bed15cdc02f17fe9dba8c0aead1a8ed5ac400769368232924a42e0ad249fe112e44cd3d4af56ce9da6f57e2f2ddf14d714cb4fa99c7556a9
+@0:0 start_dispersy
+@0:1 online
+@0:5 reset_dispersy_statistics
+#
+@0:40 reset_circuits
+#
+@0:50 annotate "3 hops, 4 circuits"
+@0:50 build_circuits 3 4
+# 400 kB = 3200 32x4-byte packets
+@0:55 create_torrent 3200
+@0:90 annotate "reset 1"
+@0:90 reset_circuits
+#
+@0:100 annotate "2 hops, 4 circuits"
+@0:100 build_circuits 2 4
+@0:105 create_torrent 3200
+@0:140 annotate "reset 2"
+@0:140 reset_circuits
+#
+@0:150 annotate "1 hop, 4 circuits"
+@0:150 build_circuits 1 4
+@0:155 create_torrent 3200
+@0:190 annotate "reset 3"
+@0:190 reset_circuits
+#
+@0:200 annotate "0 hops, 4 circuits"
+@0:200 build_circuits 0 4
+@0:205 create_torrent 3200
+@0:240 annotate "reset 4"
+@0:240 reset_circuits
+#
+@0:250 stop_dispersy
+@0:255 stop
