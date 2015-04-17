@@ -4,6 +4,7 @@
 import sys
 import random
 import string
+import yappi
 
 from os import path
 from random import choice
@@ -66,7 +67,9 @@ class TunnelClient(DispersyExperimentScriptClient):
 
         self.scenario_runner.register(self.build_circuits, 'build_circuits')
         self.scenario_runner.register(self.reset_circuits, 'reset_circuits')
-        self.scenario_runner.register(self.create_torrent, 'create_torrent')
+        self.scenario_runner.register(self.send_packets, 'send_packets')
+	self.scenario_runner.register(self.start_profiling, 'start_profiling')
+	self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
 
     def build_circuits(self, hops=3, count=4):
         """Increase the number of circuits to a certain count
@@ -135,14 +138,13 @@ class TunnelClient(DispersyExperimentScriptClient):
             self.monitor_circuits_lc = None
 
     def monitor_circuits(self):
-        """Monitor changes in the circuits and report these
+        """Monitor changes in the number of circuits and report these
         """
         nr_circuits = len(self._community.active_data_circuits()) if self._community else 0
-        total_up = self._community._statistics.msg_statistics.total_received_count if self._community else 0
         self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'nr_circuits': nr_circuits})
-        #self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'total_up': total_up})
 
-    def create_torrent(self, packets=1):
+
+    def send_packets(self, packets=1):
         """Create a torrent containing random bytes
             
             Only peer 1 sends
@@ -156,7 +158,8 @@ class TunnelClient(DispersyExperimentScriptClient):
             
             print >>sys.stderr, "SENDING - Constructing packets"
 
-            data = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
+            length = 5
+            data = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
             print >>sys.stderr, "SENDING - Done constructing packets, starting send"
             starttime = time()
@@ -165,12 +168,25 @@ class TunnelClient(DispersyExperimentScriptClient):
             endtime = time()
             print >>sys.stderr, "SENDING - Done sending packets"
 
-            bps = (endtime - starttime)/(int(packets)*32)
+            bps = (endtime - starttime)/(int(packets)*length*4) # Unicode characters consist of 4 bytes
             print >>sys.stderr, "SENDING - Sent ", int(packets), " packets"
             print >>sys.stderr, "SENDING - Sent in ", (endtime - starttime), " seconds"
             self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'send_speed': round(bps,4)})
             print >>sys.stderr, "SENDING - Done writing to statistics"
 
+    def start_profiling(self, outputName=""):
+        """Start profiling tunnel functions"""
+        yappi.start()
+        self.outputfile = open("profiling" + outputName + ".log", 'w')
+
+    def stop_profiling(self):
+        """Stop profiling tunnel functions"""
+        yappi.stop()
+        yappi_stats = yappi.get_func_stats()
+        yappi_stats.sort("tsub")
+        for func_stat in filter( lambda x: "Tribler/community/tunnel" in x.module, yappi_stats):
+            self.outputfile.write("%10dx  %10.3fs %s\n" % (func_stat.ncall, func_stat.tsub, func_stat.full_name))
+        self.outputfile.close()
 
 if __name__ == '__main__':
     TunnelClient.scenario_file = 'tunnel_performance.scenario'
