@@ -71,6 +71,8 @@ stopifnot(figcolumns > 0)
 
 figrows <- ceiling(length(allfiles)/figcolumns)
 
+# [MAIN] PIECHARTS
+
 pdf('profile_piechart.pdf', width=20, height=15)
 par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(4,1,4,1))
 
@@ -82,8 +84,35 @@ for(i in 1:length(allfiles)) {
 	data <- sanitiseData(data)
 
 	# Create the pie chart
-	configname <- gsub("(profiling_)?(.log)?", "", file)
-	pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), cex=0.75)
+	if (length(data$time) > 0){
+		configname <- gsub("(profiling_)?(.log)?", "", file)
+		pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), cex=0.75)
+	} else {
+		frame()
+	}
+}
+
+dev.off()
+
+# [MAIN] HISTOGRAMS
+
+pdf('profile_histogram.pdf', width=15, height=20)
+par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(25,4,1,1))
+
+# Loop through all the files and fill area with histograms
+for(i in 1:length(allfiles)) {
+	# Read the data and clean it
+	file <- allfiles [i]
+	data <- nfread(file, 10)	# 5s timeout
+	data <- sanitiseData(data)
+
+	# Create the histogram
+	if (length(data$time) > 0){
+		configname <- gsub("(profiling_)?(.log)?", "", file)
+		barplot(unlist(data$time), ylab="time (s)", names.arg=unlist(data$name), main=paste(configname, "Configuration, absolute time spent"), las=2)
+	} else {
+		frame()
+	}
 }
 
 dev.off()
