@@ -68,8 +68,12 @@ class TunnelClient(DispersyExperimentScriptClient):
         self.scenario_runner.register(self.build_circuits, 'build_circuits')
         self.scenario_runner.register(self.reset_circuits, 'reset_circuits')
         self.scenario_runner.register(self.send_packets, 'send_packets')
-	self.scenario_runner.register(self.start_profiling, 'start_profiling')
-	self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
+        self.scenario_runner.register(self.start_profiling, 'start_profiling')
+        self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
+
+    def is_head_node(self):
+        """Is this node the main sending node"""
+        return int(self.my_id) == 1
 
     def build_circuits(self, hops=3, count=4):
         """Increase the number of circuits to a certain count
@@ -79,13 +83,15 @@ class TunnelClient(DispersyExperimentScriptClient):
         """
         msg("build_circuits")
 
-        icount = int(count)
-        ihops = int(hops)
+        # Only the head node needs to actually build the circuits
+        if self.is_head_node():
+            icount = int(count)
+            ihops = int(hops)
 
-        self._community.settings.circuit_length = icount
+            self._community.settings.circuit_length = icount
 
-        for x in range(0, icount):
-            self._community.create_circuit(ihops)
+            for x in range(0, icount):
+                self._community.create_circuit(ihops)
 
     def reset_circuits(self):
         """Kill all circuits, relays and peers"""
@@ -149,7 +155,7 @@ class TunnelClient(DispersyExperimentScriptClient):
             
             Only peer 1 sends
         """
-        if int(self.my_id) == 1:
+        if self.is_head_node():
             print >>sys.stderr, "SENDING"
             origin = ("127.0.0.1",12001) # This is us
             target = ("127.0.0.1",12002) # Send to client #2
