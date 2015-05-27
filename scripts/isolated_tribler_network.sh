@@ -52,19 +52,6 @@ if [ -z "$ISOLATED_TRIBLER_INSTANCES_TO_SPAWN" ]; then
     exit 2
 fi
 
-# use the following tar command to tar your Tribler home dir to use this:
-# tar --exclude="*.txt" --exclude="*.conf" --exclude="*.pem" -cvjpf tribler_data.tar.gz .Tribler
-if [ ! -z "$HOME_FILE" ]; then
-	if [ -e $HOME_FILE ]; then
-	    export HOME_SEED_FILE=$(readlink -f $HOME_FILE )
-	    echo "HOME_SEED_FILE set to $HOME_SEED_FILE"
-	else
-		echo "The seed file was not found."
-	fi
-else
-	echo "No seed file set."
-fi
-
 MINIONS=$ISOLATED_TRIBLER_INSTANCES_TO_SPAWN
 
 mkdir -p $HOME/tmp/
@@ -82,8 +69,7 @@ while [ $MINIONS -gt 0 ]; do
     let MINIONS=$MINIONS-1
 done
 
-echo process_guard.py -m $OUTPUT_DIR/isolated_triblers -o $OUTPUT_DIR/isolated_triblers  -f $COMMANDS_FILE
-process_guard.py -m $PWD/output -o $PWD/output  -f $COMMANDS_FILE &
+process_guard.py -m $OUTPUT_DIR/isolated_triblers -o $OUTPUT_DIR/isolated_triblers  -f $COMMANDS_FILE &
 PROCESS_GUARD_PID=$!
 
 
