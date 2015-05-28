@@ -1,42 +1,41 @@
-@0:0 set_master_member 3081a7301006072a8648ce3d020106052b810400270381920004029fcf95d6baf026363a091950aa473196bd058a6d7342f2d77ddb61b8881982477a92e05a5bc81c0eaf40312d68f733f6ff6030b3ff8ae206b737bedefaa03d25c9398b500b0b1905f3982920cf29d17f6c21c1e4e88ad3bed15cdc02f17fe9dba8c0aead1a8ed5ac400769368232924a42e0ad249fe112e44cd3d4af56ce9da6f57e2f2ddf14d714cb4fa99c7556a9
-@0:0 start_dispersy
-@0:1 online
-@0:5 reset_dispersy_statistics
+@0:0 set_master_member 3081a7301006072a8648ce3d020106052b81040027038192000400f4c94912b25dcbd72f02276590acffe0e2daae6c07be3c32207adf0a8e4668d15568cfe2ebf316f9ceb473516eb7b2b078d541861f9496c9df6bcefbec3384988db368d1f1aaed07d963d804e1e6e444e07db9b1f60121b6a89bcbb1686687a9c5b588ce6a748de647f3f4ab42119df66c70e880dee32714e28e45ab6e115233bc19710dde5d9fd3e5bc58dd07cbb9
+@0:1 start_session
+@0:5 init_community
+@0:10 online
+@0:20 reset_dispersy_statistics
 #
 @0:40 reset_circuits
 #
 @0:50 annotate "3 hops, 4 circuits"
 @0:50 build_circuits 3 4
-# 400 kB = 3200 32x4-byte packets
 @0:55 start_profiling "_3x4"
-@0:55 send_packets 3200
-@0:89 stop_profiling
-@0:90 annotate "reset 1"
-@0:90 reset_circuits
+@0:55 send_packets
+@0:174 stop_profiling
+@0:175 annotate "reset 1"
+@0:175 reset_circuits
 #
-@0:100 annotate "2 hops, 4 circuits"
-@0:100 build_circuits 2 4
-@0:105 start_profiling "_2x4"
-@0:105 send_packets 3200
-@0:139 stop_profiling
-@0:140 annotate "reset 2"
-@0:140 reset_circuits
+@0:185 annotate "2 hops, 4 circuits"
+@0:185 build_circuits 2 4
+@0:190 start_profiling "_2x4"
+@0:190 send_packets
+@0:289 stop_profiling
+@0:290 annotate "reset 2"
+@0:290 reset_circuits
 #
-@0:150 annotate "1 hop, 4 circuits"
-@0:150 build_circuits 1 4
-@0:155 start_profiling "_1x4"
-@0:155 send_packets 3200
-@0:189 stop_profiling
-@0:190 annotate "reset 3"
-@0:190 reset_circuits
+@0:300 annotate "1 hop, 4 circuits"
+@0:300 build_circuits 1 4
+@0:305 start_profiling "_1x4"
+@0:305 send_packets
+@0:404 stop_profiling
+@0:405 annotate "reset 3"
+@0:405 reset_circuits
 #
-@0:200 annotate "0 hops, 4 circuits"
-@0:200 build_circuits 0 4
-@0:205 start_profiling "_0x4"
-@0:205 send_packets 3200
-@0:239 stop_profiling
-@0:240 annotate "reset 4"
-@0:240 reset_circuits
+@0:415 annotate "0 hops, 4 circuits"
+@0:415 build_circuits 0 4
+@0:420 start_profiling "_0x4"
+@0:420 send_packets
+@0:519 stop_profiling
+@0:520 annotate "reset 4"
+@0:520 reset_circuits
 #
-@0:250 stop_dispersy
-@0:255 stop
+@0:540 stop
