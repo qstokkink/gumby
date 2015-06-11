@@ -5,6 +5,8 @@ import sys
 import random
 import string
 import yappi
+import os
+import logging
 
 from os import path
 from random import choice
@@ -14,6 +16,7 @@ from sys import path as pythonpath
 from tempfile import gettempdir
 from time import time
 
+from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 from twisted.python.log import msg
 
@@ -42,59 +45,72 @@ class TunnelClient(DispersyExperimentScriptClient):
         DispersyExperimentScriptClient.__init__(self, *argv, **kwargs)
         self.community_class = HiddenTunnelCommunity
 
-        self.monitor_circuits_lc = None         #The looping callback that reports the number of circuits
-        self._prev_scenario_statistics = {}     #Stores previous state to track changes in the amount of circuits
-
     def registerCallbacks(self):
-        """Initialize the tunnel's settings and register 
-            scenario callbacks
+        """Register scenario callbacks
 
-            Port ranges are mapped according to the id of the 
-            current process. Note that this is done here as the
-            id is not known at __init__ time.
-
-            Scenario callbacks:
                 - build_circuits:   set the amount hops and circuits
                 - reset_circuits:   kill all circuits
                 - create_torrent:   create the torrent to be seeded by client 0
                 - download:         start downloading the torrent for client 1
         """
-        tunnel_settings = TunnelSettings()
-        tunnel_settings.max_circuits = 0
-        tunnel_settings.max_packets_without_reply = 10000000
-        tunnel_settings.socks_listen_ports = range(14000 + int(self.my_id)*100,14000 + int(self.my_id)*100 + 99)
-        self.set_community_kwarg('settings', tunnel_settings)
-
         self.scenario_runner.register(self.build_circuits, 'build_circuits')
         self.scenario_runner.register(self.reset_circuits, 'reset_circuits')
         self.scenario_runner.register(self.send_packets, 'send_packets')
         self.scenario_runner.register(self.start_profiling, 'start_profiling')
         self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
+        self.scenario_runner.register(self.init_community, 'init_community')
+        self.scenario_runner.register(self.start_dispersy, 'start_session') # Forward-compatability
+
+    def init_community(self):
+        """Initialize the tunnel's settings
+
+            Port ranges are mapped according to the id of the 
+            current process. Note that this is done here as the
+            id is not known at __init__ time.
+        """
+        tunnel_settings = TunnelSettings()
+        tunnel_settings.max_circuits = 0
+        tunnel_settings.max_packets_without_reply = 10000000
+        tunnel_settings.socks_listen_ports = range(14000 + int(self.my_id)*100,14000 + int(self.my_id)*100 + 99)
+        tunnel_settings.do_test = False
+        tunnel_settings.become_exitnode = True if self.is_exit_node() else False
+        self.set_community_kwarg('settings', tunnel_settings)
+
+        logging.error("I became exitnode: %s" % ('True' if self.is_exit_node() else 'False'))
+        logging.error("I became seednode: %s" % ('True' if self.is_head_node() else 'False'))
+        logging.error("I became downloadnode: %s" % ('True' if self.is_dl_node() else 'False'))
 
     def is_head_node(self):
-        """Is this node the main sending node"""
-        return int(self.my_id) == 1
+        """Is this node the main seeding node"""
+        return self.scenario_runner._peernumber == 1
+
+    def is_exit_node(self):
+        """Is this node the designated exit node"""
+        return self.scenario_runner._peernumber == 2
+
+    def is_dl_node(self):
+        """Is this node the downloading node"""
+        return self.scenario_runner._peernumber == 3
 
     def build_circuits(self, hops=3, count=4):
-        """Increase the number of circuits to a certain count
-
-            This allows for monitoring the increase in circuits
-            over time.        
+        """Increase the number of circuits to a certain count  
         """
-        msg("build_circuits")
 
-        # Only the head node needs to actually build the circuits
+        icount = int(count)
+        ihops = int(hops)
+
+        self.hops = ihops
+
+        # Only the downloading node needs to actually build the circuits
         if self.is_head_node():
-            icount = int(count)
-            ihops = int(hops)
-
             self._community.settings.circuit_length = icount
 
             for x in range(0, icount):
                 self._community.create_circuit(ihops)
 
     def reset_circuits(self):
-        """Kill all circuits, relays and peers"""
+        """Force kill all circuits, relays and peers"""
+        # Kill circuits
         keys = self._community.circuits.keys()
         for key in keys:
             self._community.remove_circuit(key, 'experiment reset')
@@ -117,9 +133,6 @@ class TunnelClient(DispersyExperimentScriptClient):
 
             Secondly the DispersyExperimentScriptClient is brought
             online.
-
-            Finally the looping callback to monitor the circuit
-            changes is brought online.
         """
         nkey = self._dispersy.crypto.generate_key(u"curve25519")
         self._my_member.__init__(self._dispersy, nkey, self._my_member._database_id, self._my_member._mid)
@@ -128,62 +141,40 @@ class TunnelClient(DispersyExperimentScriptClient):
         self._master_member.__init__(self._dispersy, nmkey, self._master_member._database_id, self._master_member._mid)
 
         DispersyExperimentScriptClient.online(self)
-        if not self.monitor_circuits_lc:
-            self.monitor_circuits_lc = lc = LoopingCall(self.monitor_circuits)
-            lc.start(5.0, now=True)
 
-    def offline(self):
-        """Shut down this client
-
-            Stops the DispersyExperimentScriptClient and the
-            circuit monitoring looping callback.
-        """
-        DispersyExperimentScriptClient.offline(self)
-        if self.monitor_circuits_lc:
-            self.monitor_circuits_lc.stop()
-            self.monitor_circuits_lc = None
-
-    def monitor_circuits(self):
-        """Monitor changes in the number of circuits and report these
-        """
-        nr_circuits = len(self._community.active_data_circuits()) if self._community else 0
-        self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'nr_circuits': nr_circuits})
-
-
-    def send_packets(self, packets=1):
+    def send_packets(self, packets=3200):
         """Create a torrent containing random bytes
             
             Only peer 1 sends
         """
         if self.is_head_node():
-            print >>sys.stderr, "SENDING"
+            logging.error("SENDING")
             origin = ("127.0.0.1",12001) # This is us
             target = ("127.0.0.1",12002) # Send to client #2
             circuit_id = choice(self._community.circuits.keys())
             circuit = self._community.circuits[circuit_id]
             
-            print >>sys.stderr, "SENDING - Constructing packets"
+            logging.error("SENDING - Constructing packets")
 
             length = 5
             data = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
-            print >>sys.stderr, "SENDING - Done constructing packets, starting send"
+            logging.error("SENDING - Done constructing packets, starting send")
             starttime = time()
             for x in range(0, int(packets)):
                 circuit.tunnel_data(target, data)
             endtime = time()
-            print >>sys.stderr, "SENDING - Done sending packets"
+            logging.error("SENDING - Done sending packets")
 
             bps = (endtime - starttime)/(int(packets)*length*4) # Unicode characters consist of 4 bytes
-            print >>sys.stderr, "SENDING - Sent ", int(packets), " packets"
-            print >>sys.stderr, "SENDING - Sent in ", (endtime - starttime), " seconds"
-            self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'send_speed': round(bps,4)})
-            print >>sys.stderr, "SENDING - Done writing to statistics"
+            logging.error("SENDING - Sent %d packets" % int(packets))
+            logging.error("SENDING - Sent in %f seconds" % (endtime - starttime))
+            logging.error("SENDING - Done writing to statistics")
 
     def start_profiling(self, outputName=""):
         """Start profiling tunnel functions"""
-        yappi.start()
         self.outputfile = open("profiling" + outputName + ".log", 'w')
+        yappi.start()
 
     def stop_profiling(self):
         """Stop profiling tunnel functions"""
