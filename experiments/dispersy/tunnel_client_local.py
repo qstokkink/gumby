@@ -5,6 +5,8 @@ import sys
 import random
 import string
 import yappi
+import os
+import logging
 
 from os import path
 from random import choice
@@ -13,11 +15,16 @@ from struct import pack
 from sys import path as pythonpath
 from tempfile import gettempdir
 from time import time
+from threading import Event
 
+from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 from twisted.python.log import msg
 
 from gumby.experiments.dispersyclient import DispersyExperimentScriptClient, main
+from gumby.experiments.TriblerDispersyClient import TriblerDispersyExperimentScriptClient,\
+    BASE_DIR
+from hiddenservices_client import HiddenServicesClient
 
 # TODO(emilon): Fix this crap
 pythonpath.append(path.abspath(path.join(path.dirname(__file__), '..', '..', '..', "./tribler")))
@@ -30,71 +37,81 @@ from Tribler.dispersy.candidate import Candidate
 from Tribler.dispersy.endpoint import TUNNEL_PREFIX
 from Tribler.community.tunnel.Socks5 import conversion
 
-class TunnelClient(DispersyExperimentScriptClient):
+class TunnelClient(HiddenServicesClient):
 
     def __init__(self, *argv, **kwargs): 
         """Initialize the local Tunnel client
-        
-            We use the HiddenTunnelCommunity here because it 
-            correctly initializes the dispersy meta-messages.
         """
         from Tribler.community.tunnel.hidden_community import HiddenTunnelCommunity
-        DispersyExperimentScriptClient.__init__(self, *argv, **kwargs)
-        self.community_class = HiddenTunnelCommunity
-
-        self.monitor_circuits_lc = None         #The looping callback that reports the number of circuits
-        self._prev_scenario_statistics = {}     #Stores previous state to track changes in the amount of circuits
+        HiddenServicesClient.__init__(self, *argv, **kwargs)
 
     def registerCallbacks(self):
-        """Initialize the tunnel's settings and register 
-            scenario callbacks
-
-            Port ranges are mapped according to the id of the 
-            current process. Note that this is done here as the
-            id is not known at __init__ time.
-
-            Scenario callbacks:
+        """Scenario callbacks:
                 - build_circuits:   set the amount hops and circuits
                 - reset_circuits:   kill all circuits
-                - create_torrent:   create the torrent to be seeded by client 0
+                - send_packets:     create the torrent to be seeded by client 0
                 - download:         start downloading the torrent for client 1
         """
-        tunnel_settings = TunnelSettings()
-        tunnel_settings.max_circuits = 0
-        tunnel_settings.max_packets_without_reply = 10000000
-        tunnel_settings.socks_listen_ports = range(14000 + int(self.my_id)*100,14000 + int(self.my_id)*100 + 99)
-        self.set_community_kwarg('settings', tunnel_settings)
+        HiddenServicesClient.registerCallbacks(self)
 
         self.scenario_runner.register(self.build_circuits, 'build_circuits')
         self.scenario_runner.register(self.reset_circuits, 'reset_circuits')
         self.scenario_runner.register(self.send_packets, 'send_packets')
         self.scenario_runner.register(self.start_profiling, 'start_profiling')
         self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
+        self.scenario_runner.register(self.init_community, 'init_community')
+
+    def init_community(self):
+        if self.is_exit_node():
+            HiddenServicesClient.init_community(self, True)
+        else:
+            HiddenServicesClient.init_community(self, False)
+
+        tunnel_settings = self.community_kwargs['settings']
+        tunnel_settings.max_packets_without_reply = 10000000
+
+        logging.error("I became seednode: %s" % ('True' if self.is_head_node() else 'False'))
+        logging.error("I became downloadnode: %s" % ('True' if self.is_dl_node() else 'False'))
 
     def is_head_node(self):
-        """Is this node the main sending node"""
-        return int(self.my_id) == 1
+        """Is this node the main seeding node"""
+        return self.scenario_runner._peernumber == 1
+
+    def is_exit_node(self):
+        """Is this node the designated exit node"""
+        return self.scenario_runner._peernumber == 2
+
+    def is_dl_node(self):
+        """Is this node the downloading node"""
+        return self.scenario_runner._peernumber == 3
 
     def build_circuits(self, hops=3, count=4):
-        """Increase the number of circuits to a certain count
-
-            This allows for monitoring the increase in circuits
-            over time.        
+        """Increase the number of circuits to a certain count  
         """
-        msg("build_circuits")
 
-        # Only the head node needs to actually build the circuits
-        if self.is_head_node():
-            icount = int(count)
-            ihops = int(hops)
+        icount = int(count)
+        ihops = int(hops)
 
+        self.hops = ihops
+
+        # Only the downloading node needs to actually build the circuits
+        if self.is_dl_node():
             self._community.settings.circuit_length = icount
 
             for x in range(0, icount):
                 self._community.create_circuit(ihops)
 
+        if self.is_head_node():
+            self.setup_seeder()
+
     def reset_circuits(self):
-        """Kill all circuits, relays and peers"""
+        """Force kill all circuits, relays and peers"""
+        # Kill downloads
+        downloads = self.session.get_downloads()
+        for download in downloads:
+            self.session.remove_download(download)
+
+        # Kill circuits
         keys = self._community.circuits.keys()
         for key in keys:
             self._community.remove_circuit(key, 'experiment reset')
@@ -107,83 +124,100 @@ class TunnelClient(DispersyExperimentScriptClient):
 
         self._community.settings.circuit_length = 0
         self._community._statistics.msg_statistics.total_received_count = 0
-    
-    def online(self):
-        """Bring this client online
 
-            First curve25519 keys are generated to replace the 
-            default M2Crypto keys which are otherwise used. Note
-            this is required by code assertions.
-
-            Secondly the DispersyExperimentScriptClient is brought
-            online.
-
-            Finally the looping callback to monitor the circuit
-            changes is brought online.
+    def send_packets(self):
+        """Only peer 3 downloads (from peer 1)
         """
-        nkey = self._dispersy.crypto.generate_key(u"curve25519")
-        self._my_member.__init__(self._dispersy, nkey, self._my_member._database_id, self._my_member._mid)
+        if self.is_dl_node():
+            self.start_download(self.hops)
 
-        nmkey = self._dispersy.crypto.generate_key(u"curve25519")
-        self._master_member.__init__(self._dispersy, nmkey, self._master_member._database_id, self._master_member._mid)
+    def start_download(self, hops):
+        from Tribler.Main.globals import DefaultDownloadStartupConfig
+        defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
+        dscfg = defaultDLConfig.copy()
+        dscfg.set_hops(0) # DEBUG << hops
+        dscfg.set_dest_dir(path.join(os.getcwd(), 'downloader%s' % self.session.get_dispersy_port()))
 
-        DispersyExperimentScriptClient.online(self)
-        if not self.monitor_circuits_lc:
-            self.monitor_circuits_lc = lc = LoopingCall(self.monitor_circuits)
-            lc.start(5.0, now=True)
+        def cb_start_download():
+            from Tribler.Core.TorrentDef import TorrentDef
+            from Tribler.Core.simpledefs import dlstatus_strings
+            tdef = TorrentDef.load(path.join(BASE_DIR, "output", "gen.torrent"))
+            # Ports defined in HiddenServicesClient as:
+            # [23000 + (100 * self.scenario_runner._peernumber) + i for i in range(5)]
+            # Seeder has peer number 1, therefore ranges on port 23100 ~ 23104
+            tdef.set_initial_peers([("127.0.0.1", 23100),("127.0.0.1", 23101),("127.0.0.1", 23102),("127.0.0.1", 23103),("127.0.0.1", 23104)])
 
-    def offline(self):
-        """Shut down this client
+            def cb(ds):
+                logging.error('Download infohash=%s, down=%s, progress=%s, status=%s, seedpeers=%s, candidates=%d' %
+                    (tdef.get_infohash().encode('hex')[:10],
+                     ds.get_current_speed('down'),
+                     ds.get_progress(),
+                     dlstatus_strings[ds.get_status()],
+                     sum(ds.get_num_seeds_peers()),
+                     sum(1 for _ in self._community.dispersy_yield_verified_candidates())))
+                return 1.0, False
 
-            Stops the DispersyExperimentScriptClient and the
-            circuit monitoring looping callback.
-        """
-        DispersyExperimentScriptClient.offline(self)
-        if self.monitor_circuits_lc:
-            self.monitor_circuits_lc.stop()
-            self.monitor_circuits_lc = None
+            download = self.session.start_download(tdef, dscfg, 3, True)
+            download.set_state_callback(cb, delay=1)
 
-    def monitor_circuits(self):
-        """Monitor changes in the number of circuits and report these
-        """
-        nr_circuits = len(self._community.active_data_circuits()) if self._community else 0
-        self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'nr_circuits': nr_circuits})
+        self.session.uch.perform_usercallback(cb_start_download)
 
+    def setup_seeder(self):
 
-    def send_packets(self, packets=1):
-        """Create a torrent containing random bytes
-            
-            Only peer 1 sends
-        """
-        if self.is_head_node():
-            print >>sys.stderr, "SENDING"
-            origin = ("127.0.0.1",12001) # This is us
-            target = ("127.0.0.1",12002) # Send to client #2
-            circuit_id = choice(self._community.circuits.keys())
-            circuit = self._community.circuits[circuit_id]
-            
-            print >>sys.stderr, "SENDING - Constructing packets"
+        def cb_seeder_download():
+            logging.error("Create an anonymous torrent")
+            from Tribler.Core.TorrentDef import TorrentDef
+            from Tribler.Core.simpledefs import dlstatus_strings
+            tdef = TorrentDef()
+            tdef.add_content(path.join(BASE_DIR, "tribler", "Tribler", "Test", "data", "video.avi"))
+            tdef.set_tracker("http://fake.net/announce")
+            tdef.set_private()  # disable dht
+            tdef.set_anonymous(True)
+            tdef.finalize()
+            tdef_file = path.join(BASE_DIR, "output", "gen.torrent")
+            tdef.save(tdef_file)
 
-            length = 5
-            data = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
+            logging.error("Start seeding")
+            from Tribler.Main.globals import DefaultDownloadStartupConfig
+            defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
+            dscfg = defaultDLConfig.copy()
+            dscfg.set_dest_dir(path.join(BASE_DIR, "tribler", "Tribler", "Test", "data"))
+            dscfg.set_hops(0)
 
-            print >>sys.stderr, "SENDING - Done constructing packets, starting send"
-            starttime = time()
-            for x in range(0, int(packets)):
-                circuit.tunnel_data(target, data)
-            endtime = time()
-            print >>sys.stderr, "SENDING - Done sending packets"
+            def cb(ds):
+                logging.error('Seed infohash=%s, up=%s, progress=%s, status=%s, seedpeers=%s, candidates=%d' %
+                    (tdef.get_infohash().encode('hex')[:10],
+                     ds.get_current_speed('up'),
+                     ds.get_progress(),
+                     dlstatus_strings[ds.get_status()],
+                     sum(ds.get_num_seeds_peers()),
+                     sum(1 for _ in self._community.dispersy_yield_verified_candidates())))
+                return 1.0, False
 
-            bps = (endtime - starttime)/(int(packets)*length*4) # Unicode characters consist of 4 bytes
-            print >>sys.stderr, "SENDING - Sent ", int(packets), " packets"
-            print >>sys.stderr, "SENDING - Sent in ", (endtime - starttime), " seconds"
-            self._prev_scenario_statistics = self.print_on_change("scenario-statistics", self._prev_scenario_statistics, {'send_speed': round(bps,4)})
-            print >>sys.stderr, "SENDING - Done writing to statistics"
+            download = self.session.start_download(tdef, dscfg)
+            download.set_state_callback(cb, delay=1)
+
+        logging.error("Call to cb_seeder_download")
+        reactor.callInThread(cb_seeder_download)
+
+        # Wait for the introduction point to announce itself to the DHT
+        dht = Event()
+
+        def dht_announce(info_hash, community):
+            from Tribler.Core.DecentralizedTracking.pymdht.core.identifier import Id
+
+            def cb_dht(info_hash, peers, source):
+                self._logger.debug("announced %s to the DHT", info_hash.encode('hex'))
+                dht.set()
+            port = community.session.get_dispersy_port()
+            community.session.lm.mainline_dht.get_peers(info_hash, Id(info_hash), cb_dht, bt_port=port)
+
+        self._community.dht_announce = lambda ih, com = self._community: dht_announce(ih, com)
 
     def start_profiling(self, outputName=""):
         """Start profiling tunnel functions"""
-        yappi.start()
         self.outputfile = open("profiling" + outputName + ".log", 'w')
+        yappi.start() 
 
     def stop_profiling(self):
         """Stop profiling tunnel functions"""
