@@ -60,6 +60,7 @@ class TunnelClient(HiddenServicesClient):
         self.scenario_runner.register(self.start_profiling, 'start_profiling')
         self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
         self.scenario_runner.register(self.init_community, 'init_community')
+        self.scenario_runner.register(self.identify, 'identify')
 
     def init_community(self):
         if self.is_exit_node():
@@ -84,6 +85,18 @@ class TunnelClient(HiddenServicesClient):
     def is_dl_node(self):
         """Is this node the downloading node"""
         return self.scenario_runner._peernumber == 3
+
+    def identify(self):
+        """Create a file that describes this node, with its name"""
+        output = ""
+        if self.is_head_node():
+            output += "HEAD"
+        if self.is_exit_node():
+            output += "EXIT"
+        if self.is_dl_node():
+            output += "DL"
+        output += ".id"
+        open(output, 'w').close()
 
     def build_circuits(self, hops=3, count=4):
         """Increase the number of circuits to a certain count  

@@ -19,6 +19,7 @@ from time import time
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 from twisted.python.log import msg
+from twisted.internet.threads import deferToThread
 
 from gumby.experiments.dispersyclient import DispersyExperimentScriptClient, main
 
@@ -60,6 +61,7 @@ class TunnelClient(DispersyExperimentScriptClient):
         self.scenario_runner.register(self.stop_profiling, 'stop_profiling')
         self.scenario_runner.register(self.init_community, 'init_community')
         self.scenario_runner.register(self.start_dispersy, 'start_session') # Forward-compatability
+        self.scenario_runner.register(self.identify, 'identify')
 
     def init_community(self):
         """Initialize the tunnel's settings
@@ -92,6 +94,18 @@ class TunnelClient(DispersyExperimentScriptClient):
         """Is this node the downloading node"""
         return self.scenario_runner._peernumber == 3
 
+    def identify(self):
+        """Create a file that describes this node, with its name"""
+        output = ""
+        if self.is_head_node():
+            output += "HEAD"
+        if self.is_exit_node():
+            output += "EXIT"
+        if self.is_dl_node():
+            output += "DL"
+        output += ".id"
+        open(output, 'w').close()
+
     def build_circuits(self, hops=3, count=4):
         """Increase the number of circuits to a certain count  
         """
@@ -106,7 +120,10 @@ class TunnelClient(DispersyExperimentScriptClient):
             self._community.settings.circuit_length = icount
 
             for x in range(0, icount):
-                self._community.create_circuit(ihops)
+                try:
+                    self._community.create_circuit(ihops)
+                except:
+                    logger.error("FAILED TO CREATE CIRCUIT")
 
     def reset_circuits(self):
         """Force kill all circuits, relays and peers"""
@@ -151,6 +168,11 @@ class TunnelClient(DispersyExperimentScriptClient):
             logging.error("SENDING")
             origin = ("127.0.0.1",12001) # This is us
             target = ("127.0.0.1",12002) # Send to client #2
+
+            if len(self._community.circuits.keys()) == 0:
+                logging.error("CIRCUITS NOT AVAILABLE - BAILING")
+                return
+
             circuit_id = choice(self._community.circuits.keys())
             circuit = self._community.circuits[circuit_id]
             

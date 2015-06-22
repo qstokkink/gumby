@@ -4,6 +4,7 @@
 @0:10 online
 @0:20 reset_dispersy_statistics
 #
+@0:40 identify
 @0:40 reset_circuits
 #
 @0:50 annotate "3 hops, 4 circuits"
