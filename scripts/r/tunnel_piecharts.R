@@ -46,6 +46,26 @@ sanitiseData <- function(data) {
 	return (data)
 }
 
+# [FUNCTION] Get the top n results and group the rest (length = n+1)
+topData <- function(data, n) {
+	# Order descending on time
+	data <- data[order(-unlist(data$time)),]
+	# If the length of the data frame is larger than n, compress it
+	len <- length(data$time)
+	if (len > n){
+		others <- tail(data, len - n)	
+		data <- head(data, n)
+
+		insert <- data.frame(amount = sum(unlist(others$amount)),
+						time = sum(unlist(others$time)),
+						file = "N/A",
+						name = "remainder")
+		
+		data <- rbind(data, insert)
+	}
+	return (data)
+}
+
 # [FUNCTION] Try to read a file which was just created
 nfread <- function(x, i) { 
 tryCatch(
@@ -73,8 +93,8 @@ figrows <- ceiling(length(allfiles)/figcolumns)
 
 # [MAIN] PIECHARTS
 
-pdf('profile_piechart.pdf', width=20, height=15)
-par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(4,1,4,1))
+pdf('profile_piechart.pdf', width=15, height=6)
+par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(0,4,1,2))
 
 # Loop through all the files and fill area with pie charts
 for(i in 1:length(allfiles)) {
@@ -82,11 +102,12 @@ for(i in 1:length(allfiles)) {
 	file <- allfiles [i]
 	data <- nfread(file, 10)	# 5s timeout
 	data <- sanitiseData(data)
+	data <- topData(data, 10)
 
 	# Create the pie chart
 	if (length(data$time) > 0){
 		configname <- gsub("(profiling_)?(.log)?", "", file)
-		pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), cex=0.75)
+		pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), radius = 0.6, cex=1)
 	} else {
 		frame()
 	}
@@ -97,7 +118,7 @@ dev.off()
 # [MAIN] HISTOGRAMS
 
 pdf('profile_histogram.pdf', width=15, height=20)
-par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(25,4,1,1))
+par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(21,4,1,1))
 
 # Loop through all the files and fill area with histograms
 for(i in 1:length(allfiles)) {
@@ -105,6 +126,7 @@ for(i in 1:length(allfiles)) {
 	file <- allfiles [i]
 	data <- nfread(file, 10)	# 5s timeout
 	data <- sanitiseData(data)
+	data <- topData(data, 20)
 
 	# Create the histogram
 	if (length(data$time) > 0){
