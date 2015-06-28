@@ -94,7 +94,7 @@ figrows <- ceiling(length(allfiles)/figcolumns)
 # [MAIN] PIECHARTS
 
 pdf('profile_piechart.pdf', width=15, height=6)
-par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(0,4,1,2))
+par(xpd=TRUE, mfrow=c(figcolumns,figrows), mar=c(0,1,1,0))
 
 # Loop through all the files and fill area with pie charts
 for(i in 1:length(allfiles)) {
@@ -107,7 +107,7 @@ for(i in 1:length(allfiles)) {
 	# Create the pie chart
 	if (length(data$time) > 0){
 		configname <- gsub("(profiling_)?(.log)?", "", file)
-		pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), radius = 0.6, cex=1)
+		pie(unlist(data$time), labels = data$name, main=paste(configname, "Configuration, relative time spent"), radius = 0.7, cex=1)
 	} else {
 		frame()
 	}
