@@ -553,7 +553,6 @@ nose
 nosexcover
 ntplib
 pillow
-protobuf
 psutil
 pyasn1 # for twisted
 pycparser
