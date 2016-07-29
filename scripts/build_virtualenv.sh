@@ -503,33 +503,33 @@ export PKG_CONFIG_PATH=$VENV/lib/pkgconfig:$PKG_CONFIG_PATH
 export LD_LIBRARY_PATH=$VENV/lib:$LD_LIBRARY_PATH
 
 # install protobuf
-PROTOBUF_VERSION=2.6.1
+PROTOBUF_VERSION=3.0.0
 PROTOBUF_MARKER=`build_marker protobuf $PROTOBUF_VERSION`
 if [ ! -e $VENV/include/google/protobuf/descriptor.h  -o ! -e $PROTOBUF_MARKER ]; then
-    PROTOBUF_PACKAGE="protobuf-2.6.1.tar.gz"
+    PROTOBUF_PACKAGE="v3.0.0.tar.gz"
     if [ ! -e $VENV/src/$PROTOBUF_PACKAGE ]; then
         pushd $VENV/src
-        wget "https://github.com/google/protobuf/releases/download/v2.6.1/$PROTOBUF_PACKAGE"
+        wget -L "https://github.com/google/protobuf/archive/$PROTOBUF_PACKAGE"
         popd
     fi
 
-    if [ ! -e $VENV/src/protobuf-2.6.1/ ]; then
+    if [ ! -e $VENV/src/protobuf-3.0.0/ ]; then
         pushd $VENV/src
-        tar axvf $VENV/src/$PROTOBUF_PACKAGE
+        tar -zxvf $VENV/src/$PROTOBUF_PACKAGE
         popd
     fi
 
-    pushd $VENV/src/protobuf-2.6.1/
+    pushd $VENV/src/protobuf-3.0.0/
+    ./autogen.sh
     ./configure --prefix=$VENV
     make install
     popd
 
-    pushd $VENV/src/protobuf-2.6.1/python
-    python setup.py build --cpp_implementation
+    pushd $VENV/src/protobuf-3.0.0/python
+    python setup.py install --cpp_implementation
     popd
     touch $PROTOBUF_MARKER
 fi
-python -c "import google.protobuf.pyext._message"
 
 # remove pil as it doesn't work (pillow will be installed shortly)
 rm -f $VENV/bin/pil*
