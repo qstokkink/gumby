@@ -171,9 +171,9 @@ if [ ! -e $VENV/inst/.completed.$SCRIPT_VERSION ]; then
     fi
 fi
 
-if [ -e $VENV/.completed.$SCRIPT_VERSION ]; then
-    exit
-fi
+#if [ -e $VENV/.completed.$SCRIPT_VERSION ]; then
+#    exit
+#fi
 
 # DISABLED: We don't use swift anymore
 # Build libevent, not really needed for anything python related, but swift
