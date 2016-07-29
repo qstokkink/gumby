@@ -505,7 +505,7 @@ export LD_LIBRARY_PATH=$VENV/lib:$LD_LIBRARY_PATH
 # install protobuf
 PROTOBUF_VERSION=2.6.1
 PROTOBUF_MARKER=`build_marker protobuf $PROTOBUF_VERSION`
-if [ ! -e $VENV/include/google/protobuf/descriptor.h  -o ! -e $PROTOBUF_MARKER ]; then # TODO
+if [ ! -e $VENV/include/google/protobuf/descriptor.h  -o ! -e $PROTOBUF_MARKER ]; then
     PROTOBUF_PACKAGE="protobuf-2.6.1.tar.gz"
     if [ ! -e $VENV/src/$PROTOBUF_PACKAGE ]; then
         pushd $VENV/src
@@ -529,6 +529,7 @@ if [ ! -e $VENV/include/google/protobuf/descriptor.h  -o ! -e $PROTOBUF_MARKER ]
     popd
     touch $PROTOBUF_MARKER
 fi
+python -c "import google.protobuf.pyext._message"
 
 # remove pil as it doesn't work (pillow will be installed shortly)
 rm -f $VENV/bin/pil*
