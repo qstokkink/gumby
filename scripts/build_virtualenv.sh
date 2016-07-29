@@ -40,7 +40,7 @@
 #
 
 # Increase this every time the file gets modified.
-SCRIPT_VERSION=22
+SCRIPT_VERSION=23
 
 # Code:
 set -e
@@ -502,6 +502,34 @@ fi
 export PKG_CONFIG_PATH=$VENV/lib/pkgconfig:$PKG_CONFIG_PATH
 export LD_LIBRARY_PATH=$VENV/lib:$LD_LIBRARY_PATH
 
+# install protobuf
+PROTOBUF_VERSION=2.6.1
+PROTOBUF_MARKER=`build_marker protobuf $PROTOBUF_VERSION`
+if [ ! -e $VENV/include/google/protobuf/descriptor.h  -o ! -e $PROTOBUF_MARKER ]; then # TODO
+    PROTOBUF_PACKAGE="protobuf-2.6.1.tar.gz"
+    if [ ! -e $VENV/src/$PROTOBUF_PACKAGE ]; then
+        pushd $VENV/src
+        wget "https://github.com/google/protobuf/releases/download/v2.6.1/$PROTOBUF_PACKAGE"
+        popd
+    fi
+
+    if [ ! -e $VENV/src/protobuf-2.6.1/ ]; then
+        pushd $VENV/src
+        tar axvf $VENV/src/$PROTOBUF_PACKAGE
+        popd
+    fi
+
+    pushd $VENV/src/protobuf-2.6.1/
+    ./configure --prefix=$VENV
+    make install
+    popd
+
+    pushd $VENV/src/protobuf-2.6.1/python
+    python setup.py build --cpp_implementation
+    popd
+    touch $PROTOBUF_MARKER
+fi
+
 # remove pil as it doesn't work (pillow will be installed shortly)
 rm -f $VENV/bin/pil*
 rm -rf $VENV/lib/python2.7/site-packages/PIL
@@ -525,6 +553,7 @@ nose
 nosexcover
 ntplib
 pillow
+protobuf
 psutil
 pyasn1 # for twisted
 pycparser
