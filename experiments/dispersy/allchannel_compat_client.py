@@ -5,14 +5,13 @@ from allchannel_client import AllChannelClient
 
 class AllChannelCompatibilityClient(AllChannelClient):
 
-    def create(self):
-        super(AllChannelCompatibilityClient, self).create()
-        self.my_channel.compatibility_mode = False
-
     def join(self):
         super(AllChannelCompatibilityClient, self).join()
-        if self.join_lc:
-            self._community.compatibility_mode = False
+
+        cid = self._community._channelcast_db.getChannelIdFromDispersyCID(None)
+        self._logger.info("TRYING channel_cid = " + str(cid))
+        if cid:
+            self._logger.info("FOUND channel_community = " + str(self._community._get_channel_community(cid)))
 
 if __name__ == '__main__':
     AllChannelCompatibilityClient.scenario_file = 'allchannel_1000.scenario'
