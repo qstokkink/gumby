@@ -1,0 +1,8 @@
+@0:1 init_community True {1-2}
+@0:1 init_community {3-20}
+@0:2 start_session
+@0:20 online
+@0:120 reset_dispersy_statistics
+@0:120 build_circuits
+@0:120 annotate start-experiment
+@0:610 stop
