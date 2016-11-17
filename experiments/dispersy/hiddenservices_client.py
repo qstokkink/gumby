@@ -71,8 +71,6 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
         tunnel_settings.become_exitnode = become_exitnode
         logging.error("This peer is exit node: %s" % ('Yes' if become_exitnode else 'No'))
 
-        tunnel_settings.socks_listen_ports = [23000 + (10 * self.scenario_runner._peernumber) + i for i in range(5)]
-
         if not self.security_limiters:
             tunnel_settings.max_traffic = 1024 * 1024 * 1024 * 1024
 
@@ -88,6 +86,11 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
 
         self.set_community_kwarg('tribler_session', self.session)
         self.set_community_kwarg('settings', tunnel_settings)
+
+    def setup_session_config(self):
+        config = super(HiddenServicesClient, self).setup_session_config()
+        config.set_tunnel_community_enabled(False)
+        return config
 
     def get_my_member(self):
         return self._dispersy.get_new_member(u"curve25519")
@@ -115,7 +118,7 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
     def start_download(self, filename, hops=1):
         hops = int(hops)
         self.annotate('start downloading %d hop(s)' % hops)
-        from Tribler.Main.globals import DefaultDownloadStartupConfig
+        from Tribler.Core.DownloadConfig import DefaultDownloadStartupConfig
         defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
         dscfg = defaultDLConfig.copy()
         dscfg.set_hops(hops)
@@ -143,19 +146,15 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
 
                 return 1.0, False
 
-            download = self.session.start_download(tdef, dscfg)
-            download.set_state_callback(cb, delay=1)
+            download = self.session.start_download_from_tdef(tdef, dscfg)
+            download.set_state_callback(cb)
 
-            # Force lookup
-            sleep(10)
-            logging.error("Do a manual dht lookup call to bootstrap it a bit")
-            self._community.do_dht_lookup(tdef.get_infohash())
-
-        self.session.lm.threadpool.call_in_thread(0, cb_start_download)
+        reactor.callInThread(cb_start_download)
 
     def online(self, dont_empty=False):
         super(HiddenServicesClient, self).online(dont_empty)
         self.session.set_anon_proxy_settings(2, ("127.0.0.1", self.session.get_tunnel_community_socks5_listen_ports()))
+        self.session.lm.tunnel_community = self._community
 
         def monitor_downloads(dslist):
             self._community.monitor_downloads(dslist)
@@ -202,11 +201,11 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
 
             logging.error("Start seeding")
 
-            from Tribler.Main.globals import DefaultDownloadStartupConfig
+            from Tribler.Core.DownloadConfig import DefaultDownloadStartupConfig
             defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
             dscfg = defaultDLConfig.copy()
             dscfg.set_dest_dir(path.join(BASE_DIR, "tribler"))
-            dscfg.set_hops(hops)
+            dscfg.set_hops(0) # TODO hops
 
             def cb(ds):
                 from Tribler.Core.simpledefs import dlstatus_strings
@@ -224,8 +223,8 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
 
                 return 1.0, False
 
-            download = self.session.start_download(tdef, dscfg)
-            download.set_state_callback(cb, delay=1)
+            download = self.session.start_download_from_tdef(tdef, dscfg)
+            download.set_state_callback(cb)
 
         logging.error("Call to cb_seeder_download")
         reactor.callInThread(cb_seeder_download)

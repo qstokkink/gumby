@@ -52,11 +52,6 @@ class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
             reactor.callFromThread(self.__setup_dispersy_member, True)
 
         def _do_start():
-            logging.error("Upgrader")
-            upgrader = self.session.prestart()
-            while not upgrader.is_done:
-                sleep(0.1)
-
             self.session.add_observer(on_tribler_started, NTFY_TRIBLER, [NTFY_STARTED])
             return self.session.start()
 
