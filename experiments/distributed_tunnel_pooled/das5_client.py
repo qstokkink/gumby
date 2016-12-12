@@ -124,12 +124,9 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
 
             reactor.callFromThread(self.dcs.community.share, {"FILE_INFOHASH": download.get_def().get_infohash().encode("HEX")})
 
-            session_port = self.session.get_listen_port()
             seeding_port = download.ltmgr.get_session().listen_port()
-            for key in download.ltmgr.upnp_mapping_dict.keys() + [(seeding_port, "Hi mom!"), (session_port, "Hi mom!")]:
-                seeding_port, _ = key
-                logging.critical("SEEDING ON PORT: " + str(seeding_port))
-                reactor.callFromThread(self.dcs.community.share, {"SEEDING_PORT": seeding_port})
+            logging.critical("SEEDING ON PORT: " + str(seeding_port))
+            reactor.callFromThread(self.dcs.community.share, {"SEEDING_PORT": seeding_port})
 
         logging.error("Call to cb_seeder_download")
         reactor.callInThread(cb_seeder_download)

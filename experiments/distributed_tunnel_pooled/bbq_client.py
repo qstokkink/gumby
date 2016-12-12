@@ -118,9 +118,6 @@ class BBQNakedClient(TriblerDispersyExperimentScriptClient):
                 addr = (seeder.sock_addr[0], port)
                 logging.critical("ADDING PEER TO DOWNLOAD: " + str(addr))
                 self.download.add_peer(addr)
-                addr = ("127.0.0.1", port)
-                logging.critical("ADDING PEER TO DOWNLOAD: " + str(addr))
-                self.download.add_peer(addr)
 
     def seeder_registered(self, value_dict):
         self.seeders = value_dict
