@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 
 import logging
+import random
 
 from os import environ, path
 from sys import path as pythonpath
@@ -25,7 +26,7 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
         self.candidate_ips = []
         self.peer_count = 2  # TODO
         self.dcs = DispersyCommunitySyncer(self.peer_count)
-        self.testfilesize = 1024
+        self.testfilesize = 512 * 1024 * 1024
         self.speed_download = {'download': 0}
         self.speed_upload = {'upload': 0}
         self.progress = {'progress': 0}
@@ -75,8 +76,10 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
         logging.error("Create %s download" % filename)
         filename = path.join(BASE_DIR, "tribler", str(self.scenario_file) + str(filename))
         logging.info("Creating torrent..")
+        rnd_kb = "".join([chr(random.randint(0, 255))]*1024)
         with open(filename, 'wb') as fp:
-            fp.write("0" * self.testfilesize)
+            for _ in xrange(self.testfilesize/1024):
+                fp.write(rnd_kb)
 
         logging.error("Create a torrent")
         from Tribler.Core.TorrentDef import TorrentDef
@@ -90,11 +93,11 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
 
     def setup_seeder(self, filename, hops=0):
         hops = int(hops)
-        self.annotate('start seeding %d hop(s)' % hops)
 
         def cb_seeder_download():
             tdef = self.create_test_torrent(filename)
 
+            self.annotate('start seeding %d hop(s)' % hops)
             logging.error("Start seeding")
 
             from Tribler.Core.DownloadConfig import DefaultDownloadStartupConfig
@@ -114,8 +117,6 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
                                dlstatus_strings[ds.get_status()],
                                sum(ds.get_num_seeds_peers()),
                                sum(1 for _ in self._community.dispersy_yield_verified_candidates())))
-
-                self.log_progress_stats(ds)
 
                 return 1.0, False
 

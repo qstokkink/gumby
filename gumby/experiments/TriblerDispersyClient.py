@@ -102,4 +102,4 @@ class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
     def stop(self, retry=3):
         logging.error("Defer session stop to thread and stop reactor afterwards")
         self.annotate('end of experiment')
-        return deferToThread(self.session.shutdown, False).addBoth(lambda _: reactor.callLater(10.0, reactor.stop))
+        return deferToThread(self.session.shutdown).addBoth(lambda _: reactor.callLater(10.0, reactor.stop))

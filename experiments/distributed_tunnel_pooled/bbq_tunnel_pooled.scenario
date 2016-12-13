@@ -3,4 +3,5 @@
 @0:5 init_community
 @0:6 online
 @0:6 collect_peers
-@0:60 start_download bbqdownloadfile
+@0:180 start_download bbqdownloadfile
+@0:360 stop
