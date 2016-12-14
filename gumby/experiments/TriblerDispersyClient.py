@@ -14,6 +14,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '
 pythonpath.append(os.path.abspath(os.path.join(BASE_DIR, "./tribler")))
 
 from Tribler.Core.Session import Session
+from Tribler.Core.simpledefs import NTFY_STARTED, NTFY_TRIBLER
 
 
 class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
@@ -44,15 +45,17 @@ class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
         self.session_config = self.setup_session_config()
         self.session = Session(scfg=self.session_config)
 
-        def on_tribler_started(_):
+        def on_tribler_started(*args):
             logging.error("Tribler Session started")
             self.annotate("Tribler Session started")
             self._dispersy = self.session.lm.dispersy
+            reactor.callFromThread(self.__setup_dispersy_member, True)
 
         def _do_start():
-            return self.session.start().addCallback(on_tribler_started)
+            self.session.add_observer(on_tribler_started, NTFY_TRIBLER, [NTFY_STARTED])
+            return self.session.start()
 
-        deferToThread(_do_start).addCallback(self.__setup_dispersy_member)
+        deferToThread(_do_start)
 
     def __setup_dispersy_member(self, _):
         self.original_on_incoming_packets = self._dispersy.on_incoming_packets
@@ -87,7 +90,7 @@ class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
         config.set_dht_torrent_collecting(False)
         config.set_enable_torrent_search(False)
         config.set_enable_channel_search(False)
-        config.set_videoplayer(False)
+
         config.set_listen_port(20000 + self.scenario_runner._peernumber)
 
         if self.dispersy_port is None:
@@ -99,4 +102,4 @@ class TriblerDispersyExperimentScriptClient(DispersyExperimentScriptClient):
     def stop(self, retry=3):
         logging.error("Defer session stop to thread and stop reactor afterwards")
         self.annotate('end of experiment')
-        return deferToThread(self.session.shutdown, False).addBoth(lambda _: reactor.callLater(10.0, reactor.stop))
+        return deferToThread(self.session.shutdown).addBoth(lambda _: reactor.callLater(10.0, reactor.stop))
