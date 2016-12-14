@@ -31,7 +31,7 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
         self.speed_upload = {'upload': 0}
         self.progress = {'progress': 0}
 
-        self.set_community_kwarg('tribler_session', self.session)
+        self.set_community_kwarg('tribler_session', None)
 
     def get_my_member(self):
         return self._dispersy.get_new_member(u"curve25519")
@@ -68,7 +68,7 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
     def setup_session_config(self):
         config = super(DAS5NakedClient, self).setup_session_config()
 
-        config.set_tunnel_community_enabled(False)
+        config.set_tunnel_community_enabled(True)
 
         return config
 
@@ -108,15 +108,14 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
 
             def cb(ds):
                 from Tribler.Core.simpledefs import dlstatus_strings
-                logging.error('Seed infohash=%s, hops=%d, down=%d, up=%d, progress=%s, status=%s, peers=%s, cand=%d' %
+                logging.error('Seed infohash=%s, hops=%d, down=%d, up=%d, progress=%s, status=%s, peers=%s' %
                               (tdef.get_infohash().encode('hex')[:5],
                                hops,
                                ds.get_current_speed('down'),
                                ds.get_current_speed('up'),
                                ds.get_progress(),
                                dlstatus_strings[ds.get_status()],
-                               sum(ds.get_num_seeds_peers()),
-                               sum(1 for _ in self._community.dispersy_yield_verified_candidates())))
+                               sum(ds.get_num_seeds_peers())))
 
                 return 1.0, False
 
@@ -124,6 +123,7 @@ class DAS5NakedClient(TriblerDispersyExperimentScriptClient):
             download.set_state_callback(cb)
 
             reactor.callFromThread(self.dcs.community.share, {"FILE_INFOHASH": download.get_def().get_infohash().encode("HEX")})
+            reactor.callFromThread(self.dcs.community.share, {"EXIT_NODE": self.session.lm.tunnel_community._my_member.public_key.encode("HEX")})
 
             seeding_port = download.ltmgr.get_session().listen_port()
             logging.critical("SEEDING ON PORT: " + str(seeding_port))

@@ -2,11 +2,12 @@
 
 import logging
 
-from os import environ, path
+from os import environ, getpid, path
 from sys import path as pythonpath
 
 from twisted.internet import reactor, threads
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, inlineCallbacks
+from twisted.internet.task import LoopingCall
 
 from gumby.experiments.dispersy_community_syncer import DispersyCommunitySyncer
 from gumby.experiments.dispersyclient import main
@@ -14,6 +15,8 @@ from gumby.experiments.TriblerDispersyClient import BASE_DIR, TriblerDispersyExp
 
 # TODO(emilon): Fix this crap
 pythonpath.append(path.abspath(path.join(path.dirname(__file__), '..', '..', '..', "./tribler")))
+
+from Tribler.community.tunnel.tunnel_community import ExitCandidate
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -25,9 +28,10 @@ class BBQNakedClient(TriblerDispersyExperimentScriptClient):
         self.community_class = PooledTunnelCommunity
         self.candidate_ips = []
         self.seeders = {}
+        self.hops = 1
+        self.exit_candidates = []
         self.download = None
         self.download_infohash = ""
-        self.testfilesize = 1024
         self.speed_download = {'download': 0}
         self.speed_upload = {'upload': 0}
         self.progress = {'progress': 0}
@@ -35,9 +39,11 @@ class BBQNakedClient(TriblerDispersyExperimentScriptClient):
         self.dcs = DispersyCommunitySyncer(self.peer_count)
         self.dcs.conditions["SEEDING_PORT"] = (self.seeder_registered, Deferred())
         self.dcs.conditions["FILE_INFOHASH"] = (self.infohash_updated, Deferred())
+        self.dcs.conditions["EXIT_NODE"] = (self.exit_updated, Deferred())
 
     def get_my_member(self):
-        return self._dispersy.get_new_member(u"curve25519")
+        keypair = self.session.multichain_keypair
+        return self._dispersy.get_member(private_key=keypair.key_to_bin())
 
     def log_progress_stats(self, ds):
         new_speed_download = {'download': ds.get_current_speed('down')}
@@ -81,6 +87,19 @@ class BBQNakedClient(TriblerDispersyExperimentScriptClient):
 
         self.set_community_kwarg('tribler_session', self.session)
         self.set_community_kwarg('settings', tunnel_settings)
+
+    def online(self, dont_empty=False):
+        super(BBQNakedClient, self).online(dont_empty)
+        #self._community.build_tunnels(1)
+        self._community.replace_task("do_circuits", LoopingCall(self.do_circuits)).start(5, now=True)
+
+    def do_circuits(self):
+        if self._community and self.exit_candidates:
+            needed = self._community.settings.max_circuits
+            got = len(self._community.data_circuits(self.hops).keys())
+            for _ in xrange(needed - got):
+                success = threads.blockingCallFromThread(reactor, self._community.create_circuit, self.hops, required_endpoint=self.exit_candidates[0])
+                print "CREATION OF CIRCUIT", self.exit_candidates[0], "SUCCEEDED?", success
 
     def registerCallbacks(self):
         super(BBQNakedClient, self).registerCallbacks()
@@ -126,8 +145,12 @@ class BBQNakedClient(TriblerDispersyExperimentScriptClient):
     def infohash_updated(self, value_dict):
         self.download_infohash = value_dict.values()[0].decode("HEX")
 
+    def exit_updated(self, value_dict):
+        self.exit_candidates = [(k.sock_addr[0], k.sock_addr[1], v.decode("HEX")) for k, v in value_dict.iteritems()]
+
     def start_download(self, filename, hops=1):
         hops = int(hops)
+        self.hops = hops
         self.annotate('start downloading %d hop(s)' % hops)
         from Tribler.Core.DownloadConfig import DefaultDownloadStartupConfig
         defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
