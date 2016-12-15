@@ -1,0 +1,35 @@
+# This experiment runs a 1 hop seeder seeding a 100mb file. Other processes will 
+# download from this seeder using respectively 1, 2 and 3 hops. 
+#
+@0:0 set_master_member 3081a7301006072a8648ce3d020106052b81040027038192000400e3c76fb73d7be8b96afeb83e23eefaf903f21380f438a47261aa72d063aa8ea3abcba7b2e18437e6bd1491a7f6a44d39f62c5abe71bb2f9a660daf64d26a7416223a1141b2433006233bf728e6dd33eaf2de445e0b1ebd8cf0fd21627c0dbf435c1f48b74279ecf0a956eb8adef1b0f625cd00c55b7e6ce6df5ebe7f2215cdba840baefada72d10085c0a5f9c435ec
+@0:2 start_session
+#
+# Node 1: 1 hop, 2 processes
+@0:5 init_community 2 not_exit crypto {1}
+# Node 2: 1 hop, 3 processes
+@0:5 init_community 3 not_exit crypto {2}
+# Node 3: 1 hop, 4 processes
+@0:5 init_community 4 not_exit crypto {3}
+# Node 4: 0 hops, no tunnel community
+# Others: 0 hops, 1 process
+@0:5 init_community 1 exit crypto {8-16}
+#
+@0:10 online
+@0:11 introduce_candidates
+@0:20 reset_dispersy_statistics
+#
+@0:20 setup_seeder 1hops100mb 0 {4-7}
+#
+@0:90 prepare_context 2 1 {1}
+@0:190 start_download 1hops100mb 1 {1}
+@0:290 remove_download {1}
+#
+@0:290 prepare_context 3 1 {2}
+@0:390 start_download 1hops100mb 1 {2}
+@0:490 remove_download {2}
+#
+@0:490 prepare_context 4 1 {3}
+@0:590 start_download 1hops100mb 1 {3}
+@0:690 remove_download {3}
+#
+@0:700 stop

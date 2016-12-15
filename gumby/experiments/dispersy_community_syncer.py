@@ -143,7 +143,7 @@ class DCSCommunity(Community):
             known_members = {c.get_member(): c for c in self.dispersy_yield_verified_candidates()}
             # We need to know who the candidate is
             if message.authentication.member not in known_members:
-                yield DropMessage("Unknown member signed this")
+                yield DropMessage(message, "Unknown member signed this")
                 continue
 
             message._candidate = known_members[message.authentication.member]

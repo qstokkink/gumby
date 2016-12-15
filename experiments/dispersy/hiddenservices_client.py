@@ -61,7 +61,7 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
         self.speed_upload = {'upload': 0}
         self.progress = {'progress': 0}
         self.seeders = {}
-        self.totalpeers = 8
+        self.totalpeers = 16
         self.testfilesize = 100 * 1024 * 1024
         self.security_limiters = False
 
@@ -93,13 +93,17 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
             from Tribler.community.tunnel.crypto.tunnelcrypto import NoTunnelCrypto
             tunnel_settings.crypto = NoTunnelCrypto()
 
-        self.set_community_kwarg('tribler_session', self.session)
         self.set_community_kwarg('settings', tunnel_settings)
+
+    def online(self, dont_empty=False):
+        self.set_community_kwarg('tribler_session', self.session)
+        super(HiddenServicesClient, self).online(dont_empty)
 
     def setup_session_config(self):
         config = super(HiddenServicesClient, self).setup_session_config()
 
         config.set_tunnel_community_enabled(False)
+        config.set_tunnel_community_socks5_listen_ports([23000 + (10 * self.scenario_runner._peernumber) + i for i in range(5)])
 
         return config
 
@@ -136,7 +140,10 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
 
     def start_download(self, filename, hops=1):
         hops = int(hops)
-        self.annotate('start downloading %d hop(s)' % hops)
+        annotation = 'start downloading %d hop(s)' % hops
+        if hasattr(self._community, 'pool'):
+            annotation += '%d process(es)' % self._community.pool.get_worker_count()
+        self.annotate(annotation)
         from Tribler.Core.DownloadConfig import DefaultDownloadStartupConfig
         defaultDLConfig = DefaultDownloadStartupConfig.getInstance()
         dscfg = defaultDLConfig.copy()
