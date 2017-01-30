@@ -61,7 +61,7 @@ class HiddenServicesClient(TriblerDispersyExperimentScriptClient):
         self.speed_upload = {'upload': 0}
         self.progress = {'progress': 0}
         self.seeders = {}
-        self.totalpeers = 16
+        self.totalpeers = 103
         self.testfilesize = 100 * 1024 * 1024
         self.security_limiters = False
 

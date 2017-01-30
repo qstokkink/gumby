@@ -46,7 +46,10 @@ class PoooledTunnelClient(HiddenServicesClient):
             self.community_kwargs['settings'].workers = int(worker_count)
 
     def introduce_candidates(self):
-        pass
+        from twisted.internet import reactor, threads
+        for member in threads.blockingCallFromThread(reactor, self.dcs.start):
+            self.session.lm.tunnel_community.add_discovered_candidate(member.candidate)
+            logging.error("Adding community member %s:%d" % (member.candidate.sock_addr[0], member.candidate.sock_addr[1]))
 
     def prepare_context(self, worker_count, hops=1):
         self.annotate('setup %s process(es)' % worker_count)
@@ -68,5 +71,5 @@ class PoooledTunnelClient(HiddenServicesClient):
         self.scenario_runner.register(self.remove_download, 'remove_download')
 
 if __name__ == '__main__':
-    PoooledTunnelClient.scenario_file = environ.get('SCENARIO_FILE', 'pooled_tunnel.scenario')
+    PoooledTunnelClient.scenario_file = environ.get('SCENARIO_FILE', 'pooled_tunnel_das4.scenario')
     main(PoooledTunnelClient)
