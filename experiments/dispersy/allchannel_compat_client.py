@@ -5,6 +5,19 @@ from allchannel_client import AllChannelClient
 
 class AllChannelCompatibilityClient(AllChannelClient):
 
+    def online(self, dont_empty=False):
+        super(AllChannelCompatibilityClient, self).online(dont_empty)
+        for community in self._dispersy.get_communities():
+            if hasattr(community, 'compatibility_mode'):
+                community.compatibility_mode = False
+        if hasattr(self._community, 'compatibility_mode'):
+            self._community.compatibility_mode = False
+
+    def create(self):
+        super(AllChannelCompatibilityClient, self).create()
+        if hasattr(self.my_channel, 'compatibility_mode'):
+            self.my_channel.compatibility_mode = False
+
     def join(self):
         super(AllChannelCompatibilityClient, self).join()
 
