@@ -1,0 +1,8 @@
+@0:2 start_session
+@0:10 load_multichain_community
+@0:70 start_requesting_signatures
+@0:230 stop_requesting_signatures
+@0:240 clear_candidates_and_listen
+@0:310 stop_live_edge_listen
+@0:320 stop_session
+@0:330 stop

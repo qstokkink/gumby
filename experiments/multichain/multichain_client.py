@@ -49,13 +49,13 @@ class MultiChainClient(TriblerExperimentScriptClient):
         self.request_signature_from_candidate(candidate, up, down)
 
     def request_signature_from_candidate(self, candidate, up, down):
-        self.multichain_community.schedule_block(candidate, int(up), int(down))
+        self.multichain_community.sign_block(candidate, candidate.get_member().public_key, int(up), int(down))
 
     def request_crawl(self, candidate_id, sequence_number):
         target = self.all_vars[candidate_id]
         self._logger.info("%s: Requesting block: %s For candidate: %s" % (self.my_id, sequence_number, candidate_id))
         candidate = self.multichain_community.get_candidate((str(target['host']), target['port']))
-        self.multichain_community.send_crawl_request(candidate, int(sequence_number))
+        self.multichain_community.send_crawl_request(candidate, candidate.get_member().public_key, int(sequence_number))
 
     def start_requesting_signatures(self):
         self.request_signatures_lc.start(1)
@@ -70,7 +70,8 @@ class MultiChainClient(TriblerExperimentScriptClient):
         rand_up = randint(1, 1000)
         rand_down = randint(1, 1000)
         known_candidates = list(self.multichain_community.dispersy_yield_verified_candidates())
-        self.request_signature_from_candidate(choice(known_candidates), rand_up * 1024 * 1024, rand_down * 1024 * 1024)
+        if known_candidates:
+            self.request_signature_from_candidate(choice(known_candidates), rand_up * 1024 * 1024, rand_down * 1024 * 1024)
 
     def load_multichain_community(self):
         """
