@@ -1,14 +1,5 @@
 from abc import ABCMeta, abstractmethod
 
-from Tribler.community.search.community import SearchCommunity
-from Tribler.community.allchannel.community import AllChannelCommunity
-from Tribler.community.channel.community import ChannelCommunity
-from Tribler.community.channel.preview import PreviewChannelCommunity
-from Tribler.community.tunnel.tunnel_community import TunnelSettings
-from Tribler.community.tunnel.hidden_community import HiddenTunnelCommunity
-from Tribler.community.multichain.community import MultiChainCommunity
-from Tribler.dispersy.discovery.community import DiscoveryCommunity
-
 
 class CommunityLauncher(object):
 
@@ -110,8 +101,7 @@ class CommunityLauncher(object):
 
         :rtype: dict or None
         """
-        ret = {}
-        ret.update({'tribler_session': session})
+        ret = {'tribler_session': session}
         ret.update(self.community_kwargs)
         return ret
 
@@ -119,15 +109,14 @@ class CommunityLauncher(object):
 class DiscoveryCommunityLauncher(CommunityLauncher):
 
     def get_community_class(self):
+        from Tribler.dispersy.discovery.community import DiscoveryCommunity
         return DiscoveryCommunity
 
     def get_my_member(self, dispersy, session):
         return dispersy.get_new_member()
 
     def get_kwargs(self, session):
-        ret = super(DiscoveryCommunityLauncher, self).get_kwargs(session)
-        del ret["tribler_session"]
-        return ret
+        return self.community_kwargs
 
 class SearchCommunityLauncher(CommunityLauncher):
 
@@ -135,6 +124,7 @@ class SearchCommunityLauncher(CommunityLauncher):
         return session.get_enable_torrent_search()
 
     def get_community_class(self):
+        from Tribler.community.search.community import SearchCommunity
         return SearchCommunity
 
 
@@ -144,6 +134,7 @@ class AllChannelCommunityLauncher(CommunityLauncher):
         return session.get_enable_channel_search()
 
     def get_community_class(self):
+        from Tribler.community.allchannel.community import AllChannelCommunity
         return AllChannelCommunity
 
 
@@ -153,6 +144,7 @@ class ChannelCommunityLauncher(CommunityLauncher):
         return session.get_channel_community_enabled()
 
     def get_community_class(self):
+        from Tribler.community.channel.community import ChannelCommunity
         return ChannelCommunity
 
 
@@ -162,6 +154,7 @@ class PreviewChannelCommunityLauncher(CommunityLauncher):
         return session.get_preview_channel_community_enabled()
 
     def get_community_class(self):
+        from Tribler.community.channel.preview import PreviewChannelCommunity
         return PreviewChannelCommunity
 
     def should_load_now(self, session):
@@ -177,6 +170,7 @@ class HiddenTunnelCommunityLauncher(CommunityLauncher):
         return session.get_tunnel_community_enabled()
 
     def get_community_class(self):
+        from Tribler.community.tunnel.hidden_community import HiddenTunnelCommunity
         return HiddenTunnelCommunity
 
     def get_my_member(self, dispersy, session):
@@ -188,6 +182,7 @@ class HiddenTunnelCommunityLauncher(CommunityLauncher):
             return dispersy.get_member(private_key=dispersy.crypto.key_to_bin(keypair))
 
     def get_kwargs(self, session):
+        from Tribler.community.tunnel.tunnel_community import TunnelSettings
         shared_args = super(HiddenTunnelCommunityLauncher, self).get_kwargs(session)
         if 'settings' not in shared_args and session is None:
             shared_args['settings'] = TunnelSettings(tribler_session=session)
@@ -204,6 +199,7 @@ class MultiChainCommunityLauncher(CommunityLauncher):
         return session.get_enable_multichain()
 
     def get_community_class(self):
+        from Tribler.community.multichain.community import MultiChainCommunity
         return MultiChainCommunity
 
     def get_my_member(self, dispersy, session):

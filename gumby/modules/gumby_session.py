@@ -1,9 +1,6 @@
 import logging
 import time as timemod
 
-from os import path
-from sys import path as pythonpath
-
 from gumby.modules.community_launcher import *
 
 from Tribler.Core.Session import Session
