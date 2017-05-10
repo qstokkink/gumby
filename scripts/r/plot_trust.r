@@ -74,7 +74,7 @@ for (source_node in names(live_edges)){
     E(trust_graph)$color <- "#CCCCCCCC"
     # Color the edges in the live_edge
     for (i in seq(1, length(live_edge), 2)){  
-        if (live_edge[i] != "" && live_edge[i+1] != ""){
+        if (!is.na(live_edge[i]) && !is.na(live_edge[i+1]) && live_edge[i] != "" && live_edge[i+1] != ""){
             if (are_adjacent(trust_graph, live_edge[i], live_edge[i+1])) {
                 E(trust_graph)[get.edge.ids(trust_graph, c(live_edge[i], live_edge[i+1]), directed = FALSE)]$color <- color_palette[current_color]
             } else {
@@ -87,7 +87,7 @@ for (source_node in names(live_edges)){
     # Color the vertices of the live_edge
     V(trust_graph)$color <- 'orange'
     for (id in live_edge){
-        if (id != ""){
+        if (!is.na(id) && id != ""){
             V(trust_graph)[id]$color <- color_palette[current_color]
         }
     }

@@ -1,5 +1,9 @@
+&module gumby.modules.tribler_module.TriblerModule
+&module experiments.live_edges.live_edges_module.LiveEdgesModule
+
+@0:1 isolate_community MultiChainCommunity
 @0:2 start_session
-@0:10 load_multichain_community
+@0:13 set_unlimited_pending
 @0:70 start_requesting_signatures
 @0:230 stop_requesting_signatures
 @0:240 clear_candidates_and_listen
