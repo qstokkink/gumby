@@ -44,7 +44,7 @@ class MultichainModule(CommunityExperimentModule):
     def set_unlimited_pending(self):
         # each peer has an almost unlimited number of bytes pending at each other peer. So we can sign stuff.
         for candidate_id in self.all_vars.iterkeys():
-            if int(candidate_id) != self.my_id:
+            if int(candidate_id) != self.my_id and 'multichain_public_key' in self.all_vars[candidate_id]:
                 pk = self.get_candidate(candidate_id).get_member().public_key
                 self.community.pending_bytes[pk] = PendingBytes(maxint/2, maxint/2)
 
