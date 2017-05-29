@@ -1,7 +1,16 @@
 pdf(NULL)
 
+NODE_COUNT <- 5L
+FRAME_COUNT <- 10
+
 if (!require(igraph)){
     install.packages('igraph', repos="http://cran.us.r-project.org")
+    library(igraph)
+}
+
+if (!require(apng)){
+    install.packages('apng', repos="http://cran.us.r-project.org")
+    library(apng)
 }
 
 new_trust_graph <- function() {
@@ -50,9 +59,6 @@ plot_count <- NROW(live_edges)
 color_palette <- palette(rainbow(plot_count))
 current_color <- 1
 
-png(filename = "trust.png", width=1920, height=1080*plot_count)
-par(mfrow=c(plot_count,1))
-
 for (source_node in names(live_edges)){
     live_edge <- live_edges[[source_node]]
     # Add non-local peer vertices
@@ -67,37 +73,52 @@ for (source_node in names(live_edges)){
     }
 }
 
-for (source_node in names(live_edges)){
-    live_edge <- live_edges[[source_node]]
-    print(paste("PROCESSING EDGE", paste(live_edge, collapse=" ")))
+co <- layout.fruchterman.reingold(trust_graph, niter=10000)
 
-    E(trust_graph)$color <- "#CCCCCCCC"
-    # Color the edges in the live_edge
-    for (i in seq(1, length(live_edge), 2)){  
-        if (!is.na(live_edge[i]) && !is.na(live_edge[i+1]) && live_edge[i] != "" && live_edge[i+1] != ""){
-            if (are_adjacent(trust_graph, live_edge[i], live_edge[i+1])) {
-                E(trust_graph)[get.edge.ids(trust_graph, c(live_edge[i], live_edge[i+1]), directed = FALSE)]$color <- color_palette[current_color]
-            } else {
-                print(paste("WARNING: COULD NOT FIND EDGE FOR",  live_edge[i], live_edge[i+1]))
-                trust_graph <- trust_graph + edge(live_edge[i], live_edge[i+1], width = 2, color = color_palette[current_color])
+for (source_node in head(names(live_edges), n = NODE_COUNT)){
+    for (frame in 1:FRAME_COUNT) {
+        live_edge <- head(live_edges[[source_node]], n = frame)
+        print(paste("PROCESSING EDGE", paste(live_edge, collapse=" ")))
+        png(filename = paste("trust_", source_node, "_", frame, ".png", sep=""), width=1024, height=768)
+        par(mfrow=c(1,1))
+
+        E(trust_graph)$color <- "#CCCCCCCC"
+        # Color the edges in the live_edge
+        for (i in seq(1, length(live_edge), 2)){  
+            if (!is.na(live_edge[i]) && !is.na(live_edge[i+1]) && live_edge[i] != "" && live_edge[i+1] != ""){
+                if (are_adjacent(trust_graph, live_edge[i], live_edge[i+1])) {
+                    E(trust_graph)[get.edge.ids(trust_graph, c(live_edge[i], live_edge[i+1]), directed = FALSE)]$color <- color_palette[current_color]
+                } else {
+                    print(paste("WARNING: COULD NOT FIND EDGE FOR",  live_edge[i], live_edge[i+1]))
+                    trust_graph <- trust_graph + edge(live_edge[i], live_edge[i+1], width = 2, color = color_palette[current_color])
+                }
             }
         }
-    }
 
-    # Color the vertices of the live_edge
-    V(trust_graph)$color <- 'orange'
-    for (id in live_edge){
-        if (!is.na(id) && id != ""){
-            V(trust_graph)[id]$color <- color_palette[current_color]
+        # Color the vertices of the live_edge
+        V(trust_graph)$color <- "#FFA50050"
+        V(trust_graph)$label <- ""
+        for (id in live_edge){
+            if (!is.na(id) && id != ""){
+                V(trust_graph)[id]$color <- color_palette[current_color]
+                V(trust_graph)[id]$label <- id
+            }
         }
+
+        V(trust_graph)$size <- 4
+
+        if ("?" %in% V(trust_graph)$name) {
+            trust_graph <- trust_graph - "?"
+        }
+        
+        plot(trust_graph, layout = co)
+        num_live_edges <- sum(live_edge == source_node)
+        title(source_node, paste("#Live Edges", num_live_edges, "Avg. Edge Length", paste(length(live_edge)/2/num_live_edges+1, "/5", sep = "")), cex.main = 4, cex.sub = 4)
+        dev.off()
     }
     current_color <- current_color + 1
-
-    if ("?" %in% V(trust_graph)$name) {
-        trust_graph <- trust_graph - "?"
-    }
-    
-    plot(trust_graph, layout = layout.fruchterman.reingold(trust_graph, niter=10000))
+    apng(paste("trust_", source_node, "_", 1:FRAME_COUNT, ".png", sep=""), paste("trust_", source_node, ".png", sep=""))
+    file.remove(paste("trust_", source_node, "_", 1:FRAME_COUNT, ".png", sep=""))
 }
-dev.off()
+
 
