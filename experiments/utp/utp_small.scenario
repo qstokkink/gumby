@@ -1,0 +1,9 @@
+&module gumby.modules.dispersy_module.DispersyModule
+&module experiments.utp.utp_module.UTPModule
+
+@0:0 isolate_community UTPCommunity
+@0:1 start_session {0-5}
+@0:10 introduce_peers
+@0:30 send_to_random {1}
+@0:40 stop_session
+@0:45 stop
