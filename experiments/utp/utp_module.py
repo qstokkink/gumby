@@ -40,7 +40,8 @@ class UTPModule(CommunityExperimentModule):
         known_candidates = list(self.community.dispersy_yield_verified_candidates())
         if known_candidates:
             candidate = random.choice(known_candidates)
-            self._logger.info("SENDING DATA TO %s", str(candidate))
-            self.community.send_utp_message(candidate, "THIS IS MY DATA"*200)
+            message = "THIS IS MY DATA" * 200
+            self._logger.info("SENDING DATA TO %s, SIZE = %d", str(candidate), len(message))
+            self.community.send_utp_message(candidate, message)
         else:
             self._logger.critical("NO CANDIDATES TO SEND TO")

@@ -18,6 +18,7 @@ from Tribler.dispersy.resolution import LinearResolution
 MAX_UTP_DATA = 400  # bytes
 MAX_UTP_IDLE = 10.0 # seconds
 UTP_RETRY_TIME = .5 # seconds
+UTP_WINDOW_SIZE = 10 # packets
 
 
 def _get_time_microseconds():
@@ -155,12 +156,14 @@ class UTPSendingConnection(UTPConnection):
         self.data_offset = 0L
         self.send_buffer = {}
         self.final_seq = -1
+        self.window_open = UTP_WINDOW_SIZE
 
     def is_complete(self):
-        return (len(self.send_buffer.keys()) == 0) or self.killed
+        return ((self.state == UTPConnectionStateEnum.CS_FINALIZED) and (len(self.send_buffer.keys()) == 0)) or self.killed
 
     def create_syn(self):
         self.state = UTPConnectionStateEnum.CS_SYN_SENT
+        self.window_open -= 1
         frame = {
             'type': UTPTypeEnum.ST_SYN,
             'version': 1,
@@ -168,7 +171,7 @@ class UTPSendingConnection(UTPConnection):
             'connection_id': self.conn_id_recv,
             'timestamp_microseconds': _get_time_microseconds(),
             'timestamp_difference_microseconds': 0,
-            'wnd_size': 0,  # TODO Implement window
+            'wnd_size': self.window_open,
             'seq_nr': self.seq_nr,
             'ack_nr': 0,
             'data': ""
@@ -181,6 +184,12 @@ class UTPSendingConnection(UTPConnection):
         super(UTPSendingConnection, self).on_frame(payload)
         if payload.ack_nr in self.send_buffer:
             del self.send_buffer[payload.ack_nr]
+            if self.state == UTPConnectionStateEnum.CS_CONNECTED:
+                self.window_open = min(self.window_open + 1, len(self.send_buffer.keys()))
+            else:
+                self.window_open += 1
+            if payload.ack_nr == self.final_seq:
+                self.state = UTPConnectionStateEnum.CS_FINALIZED
         if self.killed:
             return []
         if payload.type == UTPTypeEnum.ST_STATE:
@@ -196,55 +205,62 @@ class UTPSendingConnection(UTPConnection):
         return data_slice
 
     def on_state(self, payload):
-        self.state = UTPConnectionStateEnum.CS_CONNECTED
+        if self.state != UTPConnectionStateEnum.CS_FINALIZED:
+            self.state = UTPConnectionStateEnum.CS_CONNECTED
         self.ack_nr = payload.seq_nr
 
-        data = self._yield_data()
         current_time = _get_time_microseconds()
 
         retransmission = []
-        if payload.extension_data:
+        if payload.extension_data and self.window_open == 0:
             retransmit_frame = self.send_buffer.get(int(payload.extension_data), None)
             if retransmit_frame:
                 retransmit_frame['timestamp_microseconds'] = current_time
                 retransmit_frame['timestamp_difference_microseconds'] = current_time - payload.timestamp_microseconds
+                retransmit_frame['wnd_size'] = self.window_open
                 retransmission = [retransmit_frame, ]
 
-        if not data:
-            if not retransmission:
+        frames = []
+        while self.window_open > 0:
+            data = self._yield_data()
+
+            if not data:
+                if not retransmission:
+                    self.window_open -= 1
+                    frame = {
+                        'type': UTPTypeEnum.ST_FIN,
+                        'version': 1,
+                        'extension': UTPExtensionEnum.EX_DATA,
+                        'connection_id': self.conn_id_send,
+                        'timestamp_microseconds': current_time,
+                        'timestamp_difference_microseconds': current_time - payload.timestamp_microseconds,
+                        'wnd_size': self.window_open,
+                        'seq_nr': self.seq_nr,
+                        'ack_nr': self.ack_nr,
+                        'data': ""
+                    }
+                    if self.final_seq != self.seq_nr:
+                        self.send_buffer[frame['seq_nr']] = frame
+                    self.final_seq = self.seq_nr
+                break
+            else:
+                self.window_open -= 1
                 frame = {
-                    'type': UTPTypeEnum.ST_FIN,
+                    'type': UTPTypeEnum.ST_DATA,
                     'version': 1,
                     'extension': UTPExtensionEnum.EX_DATA,
                     'connection_id': self.conn_id_send,
                     'timestamp_microseconds': current_time,
                     'timestamp_difference_microseconds': current_time - payload.timestamp_microseconds,
-                    'wnd_size': 0,  # TODO Implement window
+                    'wnd_size': self.window_open,
                     'seq_nr': self.seq_nr,
                     'ack_nr': self.ack_nr,
-                    'data': ""
+                    'data': data
                 }
-                self.final_seq = self.seq_nr
-            else:
-                if payload.ack_nr == self.final_seq:
-                    self.state = UTPConnectionStateEnum.CS_FINALIZED
-                return retransmission
-        else:
-            frame = {
-                'type': UTPTypeEnum.ST_DATA,
-                'version': 1,
-                'extension': UTPExtensionEnum.EX_DATA,
-                'connection_id': self.conn_id_send,
-                'timestamp_microseconds': current_time,
-                'timestamp_difference_microseconds': current_time - payload.timestamp_microseconds,
-                'wnd_size': 0,  # TODO Implement window
-                'seq_nr': self.seq_nr,
-                'ack_nr': self.ack_nr,
-                'data': data
-            }
-            self.seq_nr = (self.seq_nr + 1) % 65536
-            self.send_buffer[frame['seq_nr']] = frame
-        return retransmission + [frame, ]
+                self.seq_nr = (self.seq_nr + 1) % 65536
+                self.send_buffer[frame['seq_nr']] = frame
+            frames.append(frame)
+        return retransmission + frames
 
 
 class UTPReceivingConnection(UTPConnection):
@@ -349,7 +365,7 @@ class UTPReceivingConnection(UTPConnection):
         current_time = _get_time_microseconds()
 
         previous_seq = payload.seq_nr - 1 if payload.seq_nr != 0 else 65535
-        if (previous_seq != self.syn_seq_nr) and (previous_seq not in self.receive_buffer):
+        if (payload.wnd_size == 0) and (previous_seq != self.syn_seq_nr) and (previous_seq not in self.receive_buffer):
             frame = {
                 'type': UTPTypeEnum.ST_STATE,
                 'version': 1,
