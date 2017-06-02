@@ -41,6 +41,6 @@ class UTPModule(CommunityExperimentModule):
         if known_candidates:
             candidate = random.choice(known_candidates)
             self._logger.info("SENDING DATA TO %s", str(candidate))
-            self.community.send_utp_message(candidate, "THIS IS MY DATA")
+            self.community.send_utp_message(candidate, "THIS IS MY DATA"*200)
         else:
-            self._logger.info("NO CANDIDATES TO SEND TO")
+            self._logger.critical("NO CANDIDATES TO SEND TO")

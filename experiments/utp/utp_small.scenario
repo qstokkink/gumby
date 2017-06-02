@@ -5,5 +5,5 @@
 @0:1 start_session {0-5}
 @0:10 introduce_peers
 @0:30 send_to_random {1}
-@0:40 stop_session
-@0:45 stop
+@0:50 stop_session
+@0:55 stop
