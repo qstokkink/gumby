@@ -33,6 +33,13 @@ class UTPModule(CommunityExperimentModule):
         self.dispersy_provider.custom_community_loader = UTPCommunityLoader(self.dispersy_provider.session_id)
 
     @experiment_callback
+    def listen_for_utp_callback(self):
+        self.community.utp_data_callback = self.on_utp_data
+
+    def on_utp_data(self, candidate, data):
+        self._logger.info("DATA CAME IN FROM %s, SIZE = %d", str(candidate), len(data))
+
+    @experiment_callback
     def send_to_random(self):
         """
         Request a random signature from one of your known candidates
