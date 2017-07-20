@@ -1,0 +1,17 @@
+&module gumby.modules.dispersy_module.DispersyModule
+&module experiments.benaloh.benaloh_module.BenalohModule
+
+@0 isolate_community BenalohCommunity
+@1 start_session
+@2 introduce_peers
+@15 reset_dispersy_statistics
+@15 annotate start-experiment
+
+@30 share_local
+@45 share_subset_sum
+
+@1:30 print_local_value
+@1:30 print_total_sum
+
+@2:0 stop_session
+@2:15 stop
