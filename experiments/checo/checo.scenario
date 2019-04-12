@@ -1,0 +1,14 @@
+&module gumby.modules.tribler_module.TriblerModule
+&module experiments.checo.checo_module.ChecoModule
+
+@0:0 annotate start-experiment
+@0:0 set_node_count 10 1 1000
+@0:2 start_session
+@0:4 introduce_peers
+@0:10 annotate start_sync
+@0:10 start_transactions 0.25
+@0:265 stop_transactions
+@0:267 deduplicate
+@0:271 annotate stop_session
+@0:271 stop_session
+@0:275 stop
