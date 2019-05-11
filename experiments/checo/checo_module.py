@@ -1,6 +1,6 @@
 from binascii import unhexlify
 from hashlib import sha256
-from random import choice, randint, seed
+from random import choice, random, randint, seed
 import math
 import struct
 import time
@@ -98,35 +98,77 @@ class ChecoCommunity(Community):
 
             self.scores[round] = sums
 
+    def calculate_round_scores(self, round):
+        G = nx.DiGraph()
+        nodes = set()
+
+        for peers, weight in self.transactions.get(round, {}).items():
+            pubkey_requester, pubkey_responder = peers
+
+            G.add_edge(pubkey_requester, pubkey_responder, contribution=weight)
+            G.add_edge(pubkey_responder, pubkey_requester, contribution=weight)
+
+            nodes.add(pubkey_requester)
+            nodes.add(pubkey_responder)
+
+        try:
+            result = nx.pagerank_scipy(G, weight='contribution')
+        except nx.NetworkXException:
+            self._logger.info("Empty Temporal PageRank, returning empty scores")
+            print "No nodes with exception"
+            self.scores[round] = {}
+            return
+
+        sums = {}
+        ncount = len(G.nodes())/2
+
+        for interaction in result.keys():
+            sums[interaction] = min((sums.get(interaction, 0) + result[interaction]) * ncount, 1.0)
+
+        self.scores[round] = sums
+
     def deduplicate(self):
         self.calculate_scores()
         my_key = self.my_peer.public_key.key_to_bin()
+        distances = {distance: 0 for distance in xrange(65)}
         output = {}
+        last_ts = {}
+        BUFFER_SIZE = 5
+        D = 64
 
         for round, items in self.transactions.items():
-            replicas = 0
+            current_t = int(tt(D, self.scores.get(round, {}).get(my_key, 0.0)))
+
+            last_t = last_ts.get(my_key, 64)
+
+            if current_t > last_t:
+                # Misses
+                misses = 0
+                for missed in xrange(current_t - last_t, current_t):
+                    misses += distances[missed]
+                output[round] = output.get(round, 0.0) + float(misses)/float(sum(distances.values()))
+
+                last_ts[my_key] = current_t
+            elif current_t < last_t - BUFFER_SIZE:
+                last_ts[my_key] = current_t + BUFFER_SIZE
 
             for peers, weight in self.transactions[round].items():
                 pubkey_requester, pubkey_responder = peers
-
-                if pubkey_requester == my_key or pubkey_responder == my_key:
-                    replicas += 1
-                    continue
 
                 aid = struct.unpack(">I", pubkey_requester[-4:])[0]
                 H = 64
                 Nl = len(items)
                 D = min(0.0, math.ceil(H * math.sqrt(2/Nl) - 1))
-                should_drop = f(aid, round, D, pubkey_requester + pubkey_responder + str(weight),
-                                self.scores[round].get(my_key, 0.0))
 
-                if not should_drop:
-                    replicas += 1
-                    continue
+                if pubkey_requester == my_key or pubkey_responder == my_key:
+                    distances[0] += 1
+                else:
+                    distance = d(aid, round, pubkey_requester + pubkey_responder + str(weight))
+                    distances[distance] += 1
 
-            output[round] = (replicas, len(items))
+            last_ts[my_key] = current_t
 
-        return output
+        return distances, output
 
 
 class ChecoCommunityLauncher(IPv8CommunityLauncher):
@@ -163,8 +205,8 @@ class ChecoModule(IPv8OverlayExperimentModule):
         self.tribler_config.set_popularity_community_enabled(False)
         self.tribler_config.set_trustchain_enabled(False)
 
-        self.autoplot_create("replicas")
-        self.autoplot_create("items")
+        self.autoplot_create("distances")
+        self.autoplot_create("misses")
 
     @experiment_callback
     def set_node_count(self, total_nodes, facilitator_count, max_rounds):
@@ -188,13 +230,30 @@ class ChecoModule(IPv8OverlayExperimentModule):
             counterparty = str(randint(1, self.total_nodes))
         return self.get_peer(counterparty)
 
+    def get_trusted_counterparty(self):
+        self.overlay.calculate_round_scores(self.round)
+        pkeys = self.overlay.scores.get(self.round, {})
+        mpkeys = {}
+        total_score = 0.0
+        for pkey, score in pkeys.items():
+            mscore = score
+            mpkeys[pkey] = mscore
+            total_score += mscore
+        random_score = random() * total_score
+        total_score = 0.0
+        for pkey, score in mpkeys.items():
+            total_score += score
+            if random_score > random_score:
+                return self.overlay.network.get_verified_by_public_key_bin(pkey)
+        return None
+
     def transact(self):
         if self.round >= self.max_rounds:
             return
         self.round_timestamps[self.round] = time.time()
         facilitator = choice(self.get_facilitators(self.round))
         weight = randint(0, 255)
-        counterparty = self.get_random_counterparty()
+        counterparty = self.get_trusted_counterparty() or self.get_random_counterparty()
         self.overlay.send_transaction_to(self.round, weight, facilitator, counterparty)
         self.round += 1
 
@@ -210,11 +269,11 @@ class ChecoModule(IPv8OverlayExperimentModule):
 
     @experiment_callback
     def deduplicate(self):
-        replicas = self.overlay.deduplicate()
+        distances, misses = self.overlay.deduplicate()
 
-        for round, value in replicas.items():
-            replicas, items = value
-            with open('autoplot/replicas.csv', 'a') as output_file:
-                output_file.write("%f,%d,%d\n" % (self.round_timestamps[round], self.my_id, replicas))
-            with open('autoplot/items.csv', 'a') as output_file:
-                output_file.write("%f,%d,%d\n" % (self.round_timestamps[round], self.my_id, items))
+        for distance, value in distances.items():
+            with open('autoplot/distances.csv', 'a') as output_file:
+                output_file.write("%f,%d,%d\n" % (self.round_timestamps[0] + distance, self.my_id, value))
+        for round, value in misses.items():
+            with open('autoplot/misses.csv', 'a') as output_file:
+                output_file.write("%f,%d,%f\n" % (self.round_timestamps[round], self.my_id, value))
