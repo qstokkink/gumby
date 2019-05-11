@@ -164,6 +164,12 @@ class ChecoCommunity(Community):
                     distances[0] += 1
                 else:
                     distance = d(aid, round, pubkey_requester + pubkey_responder + str(weight))
+
+                    distance /= float(H)
+                    if distance >= 0.5:
+                        distance = 1 - distance
+                    distance = int(distance * distance * H * 4)
+
                     distances[distance] += 1
 
             last_ts[my_key] = current_t
