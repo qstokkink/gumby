@@ -1,0 +1,11 @@
+&module gumby.modules.tribler_module.TriblerModule
+&module experiments.latency_overlay.latency_module.LatencyModule
+
+@0:0 annotate start-experiment
+@0:2 start_session
+@0:5 add_walking_strategy CustomWalk 20
+@0:35 write_overlay_statistics
+@0:35 dump_peer_graph
+@0:40 annotate stop_session
+@0:40 stop_session
+@0:50 stop
