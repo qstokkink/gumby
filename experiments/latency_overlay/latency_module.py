@@ -77,9 +77,7 @@ class LatencyModule(IPv8OverlayExperimentModule):
                     for ancestor in ancestry:
                         ancestor_id = reverse_ids[ancestor.address[1]]
                         node_id = reverse_ids[ancestry[ancestor].address[1]]
-                        ping_time = strategy.ping_times.get(ancestry[ancestor].address, '')
-                        if ping_time:
-                            ping_time = str(ping_time[1] - ping_time[0])
+                        ping_time = str(ancestry[ancestor].get_median_ping() or '')
                         f.write(str(ancestor_id) + ',' + str(node_id) + ',' + ping_time + '\n')
 
     def write_channels(self):
