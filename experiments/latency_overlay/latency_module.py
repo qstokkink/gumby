@@ -2,7 +2,8 @@ import os
 
 from twisted.internet.task import LoopingCall
 
-from .custom_walk import CustomWalk
+from experiments.latency_overlay.community import LatencyCommunity
+from experiments.latency_overlay.custom_walk import CustomWalk
 from gumby.experiment import experiment_callback
 from gumby.modules.community_launcher import IPv8CommunityLauncher
 from gumby.modules.community_experiment_module import IPv8OverlayExperimentModule
@@ -12,11 +13,10 @@ from gumby.modules.experiment_module import static_module
 class IPv8DiscoveryCommunityLauncher(IPv8CommunityLauncher):
 
     def get_overlay_class(self):
-        from ipv8.peerdiscovery.community import DiscoveryCommunity
-        return DiscoveryCommunity
+        return LatencyCommunity
 
     def should_launch(self, session):
-        return session.config.get_ipv8_discovery()
+        return True
 
     def get_my_peer(self, ipv8, session):
         from ipv8.peer import Peer
@@ -36,16 +36,17 @@ class LatencyModule(IPv8OverlayExperimentModule):
     """
 
     def __init__(self, experiment):
-        from ipv8.peerdiscovery.community import DiscoveryCommunity
-        super(LatencyModule, self).__init__(experiment, DiscoveryCommunity)
-        self.ipv8_community_loader.set_launcher(IPv8DiscoveryCommunityLauncher())
+        super(LatencyModule, self).__init__(experiment, LatencyCommunity)
         self.strategies['CustomWalk'] = CustomWalk
+        self.ipv8_community_loader.set_launcher(IPv8DiscoveryCommunityLauncher())
 
     def on_id_received(self):
         super(LatencyModule, self).on_id_received()
-        self.tribler_config.set_ipv8_discovery(True)
+        self.tribler_config.set_ipv8_discovery(False)
         self.tribler_config.set_trustchain_enabled(False)
+        self.autoplot_create("ancestors")
         self.autoplot_create("peers")
+        self.autoplot_create("partners")
 
         base_tracker_port = int(os.environ['TRACKER_PORT'])
         port_range = range(base_tracker_port, base_tracker_port + 4)
@@ -59,9 +60,6 @@ class LatencyModule(IPv8OverlayExperimentModule):
             self.overlay.network.blacklist.append(("127.0.0.1", port))
             self.overlay.network.blacklist.append(("10.0.2.15", port))
         LoopingCall(self.write_channels).start(1.0, True)
-
-    def ipv8_community_launcher(self):
-        return IPv8DiscoveryCommunityLauncher()
 
     @experiment_callback
     def dump_peer_graph(self):
@@ -85,6 +83,10 @@ class LatencyModule(IPv8OverlayExperimentModule):
         Write information about all discovered channels away.
         """
         if self.overlay:
+            self.autoplot_add_point("ancestors", len(self.overlay.peer_ranking))
             self.autoplot_add_point("peers", len(self.overlay.get_peers()))
+            self.autoplot_add_point("partners", len(self.overlay.accepted_proposals))
         else:
+            self.autoplot_add_point("ancestors", 0)
             self.autoplot_add_point("peers", 0)
+            self.autoplot_add_point("partners", 0)

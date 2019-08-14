@@ -3,11 +3,11 @@ import time
 from ipv8.peerdiscovery.discovery import DiscoveryStrategy
 
 
-MAX_ROOTS = 4
-MAX_EDGE_LENGTH = 4
-MAX_SIMILARITY = 0.01 # TODO: testing
+MAX_ROOTS = 8
+MAX_EDGE_LENGTH = 8
+MAX_SIMILARITY = 0.1
 NODE_TIMEOUT = 5.0
-STEP_DELAY = 0.1
+STEP_DELAY = 1.0
 
 
 class CustomWalk(DiscoveryStrategy):
@@ -26,6 +26,7 @@ class CustomWalk(DiscoveryStrategy):
         return self.ancestry
 
     def get_root_address(self):
+        self.overlay.bootstrap()
         for address in self.overlay.get_walkable_addresses():
             introducer, service = self.overlay.network._all_addresses[address]
             if introducer not in [p.mid for p in self.overlay.network.verified_peers] and address not in self.roots:
@@ -33,7 +34,6 @@ class CustomWalk(DiscoveryStrategy):
                 self.roots.append(address)
                 return
         self.roots = [root for root in self.roots if root in self.overlay.network._all_addresses]
-        self.overlay.bootstrap()
         return
 
     def do_ping(self, address):
@@ -66,7 +66,6 @@ class CustomWalk(DiscoveryStrategy):
 
     def get_granular_ping(self, peer):
         if not peer or not peer.pings or len(peer.pings) < peer.pings.maxlen:
-            print "pinging", peer, "current pings:", peer.pings
             self.overlay.send_ping(peer)
             return None
         return peer.get_median_ping()
@@ -77,10 +76,9 @@ class CustomWalk(DiscoveryStrategy):
             if len(self.roots) < MAX_ROOTS:
                 self.get_root_address()
 
-            # TODO: Rate limit the following expensive operations
-            #if time.time() - self.last_step < STEP_DELAY:
-            #    return
-            #self.last_step = time.time()
+            if time.time() - self.last_step < STEP_DELAY:
+                return
+            self.last_step = time.time()
 
             # Measure ping in roots, remove dead roots
             for root in self.roots:
@@ -109,7 +107,6 @@ class CustomWalk(DiscoveryStrategy):
                     if ipeer and ipeer not in self.ancestry:
                         ipingtime = self.get_granular_ping(ipeer)
                         if ipingtime is None:
-                            print "introduction", ipeer, "has no ping time yet"
                             continue
                         unique = True
                         for ptime in leaf_pings:
@@ -123,10 +120,10 @@ class CustomWalk(DiscoveryStrategy):
                             for other_intro in introductions:
                                 if other_intro != introduction:
                                     self.overlay.network.remove_by_address(other_intro)
-                        else:
-                            print ipingtime, "not sufficiently unique compared to", leaf_pings
                     else:
                         if ipeer:
                             self.get_granular_ping(ipeer)
                         self.overlay.walk_to(introduction)
             self.leaves = [leaf for leaf in self.leaves if leaf not in removed_leafs]
+
+            self.overlay.peer_ranking = [a[1] for a in sorted((self.get_granular_ping(p), p) for p in self.ancestry)]
