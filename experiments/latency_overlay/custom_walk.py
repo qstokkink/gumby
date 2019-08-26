@@ -3,9 +3,9 @@ import time
 from ipv8.peerdiscovery.discovery import DiscoveryStrategy
 
 
-MAX_ROOTS = 8
-MAX_EDGE_LENGTH = 8
-MAX_SIMILARITY = 0.1
+MAX_ROOTS = 50
+MAX_EDGE_LENGTH = 6
+MAX_SIMILARITY = 0.05
 NODE_TIMEOUT = 5.0
 STEP_DELAY = 1.0
 
@@ -21,6 +21,8 @@ class CustomWalk(DiscoveryStrategy):
 
         self.ancestry = {} # Peer introduced by Peer (or None)
         self.leaves = [] # Current edges' HEAD Peer objects
+
+        overlay.max_peers = MAX_ROOTS * MAX_EDGE_LENGTH
 
     def get_ancestry(self):
         return self.ancestry

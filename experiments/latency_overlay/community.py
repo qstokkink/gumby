@@ -11,7 +11,7 @@ from ipv8.messaging.payload_headers import BinMemberAuthenticationPayload
 from ipv8.requestcache import NumberCache
 
 
-PREFERRED_COUNT = 64
+PREFERRED_COUNT = 128
 
 
 class ProposalPayload(VariablePayload):
@@ -56,8 +56,7 @@ def generate_nonce():
 class LatencyCommunity(DiscoveryCommunity):
 
     def __init__(self, my_peer, endpoint, network, max_peers=DEFAULT_MAX_PEERS, anonymize=False):
-        super(LatencyCommunity, self).__init__(my_peer, endpoint, network, max_peers=PREFERRED_COUNT,
-                                               anonymize=anonymize)
+        super(LatencyCommunity, self).__init__(my_peer, endpoint, network, max_peers=max_peers, anonymize=anonymize)
 
         self.peer_ranking = []  # Sorted list, based on preference
         self.acceptable_peers = set()  # Peers we want included in our next round

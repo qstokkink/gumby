@@ -1,4 +1,5 @@
 import os
+from socket import gethostbyname
 
 from twisted.internet.task import LoopingCall
 
@@ -39,6 +40,7 @@ class LatencyModule(IPv8OverlayExperimentModule):
         super(LatencyModule, self).__init__(experiment, LatencyCommunity)
         self.strategies['CustomWalk'] = CustomWalk
         self.ipv8_community_loader.set_launcher(IPv8DiscoveryCommunityLauncher())
+        self.head_host = '0.0.0.0'
 
     def on_id_received(self):
         super(LatencyModule, self).on_id_received()
@@ -49,17 +51,19 @@ class LatencyModule(IPv8OverlayExperimentModule):
         self.autoplot_create("partners")
 
         base_tracker_port = int(os.environ['TRACKER_PORT'])
+        self.head_host = gethostbyname(os.environ['HEAD_HOST']) if 'HEAD_HOST' in os.environ else "127.0.0.1"
         port_range = range(base_tracker_port, base_tracker_port + 4)
+        print "Using head host", self.head_host, port_range
         from ipv8 import community
-        community._DEFAULT_ADDRESSES = [("127.0.0.1", port) for port in port_range]
+        community._DEFAULT_ADDRESSES = [(self.head_host, port) for port in port_range]
 
     def on_ipv8_available(self, ipv8_instance):
         base_tracker_port = int(os.environ['TRACKER_PORT'])
         port_range = range(base_tracker_port, base_tracker_port + 4)
         for port in port_range:
-            self.overlay.network.blacklist.append(("127.0.0.1", port))
             self.overlay.network.blacklist.append(("10.0.2.15", port))
-        LoopingCall(self.write_channels).start(1.0, True)
+            self.overlay.network.blacklist.append((self.head_host, port))
+        LoopingCall(self.write_channels).start(5.0, True)
 
     @experiment_callback
     def dump_peer_graph(self):
