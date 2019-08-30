@@ -10,8 +10,11 @@ from ipv8.messaging.lazy_payload import VariablePayload
 from ipv8.messaging.payload_headers import BinMemberAuthenticationPayload
 from ipv8.requestcache import NumberCache
 
+from .peer_selection import Option, PeerSelector, generate_reference
+
 
 PREFERRED_COUNT = 128
+K_WINDOW = 10
 
 
 class ProposalPayload(VariablePayload):
@@ -58,6 +61,10 @@ class LatencyCommunity(DiscoveryCommunity):
     def __init__(self, my_peer, endpoint, network, max_peers=DEFAULT_MAX_PEERS, anonymize=False):
         super(LatencyCommunity, self).__init__(my_peer, endpoint, network, max_peers=max_peers, anonymize=anonymize)
 
+        ping_time_bins = [x/10.0 for x in range(1, 10)]
+        ping_reference_bins = generate_reference(lambda x: 1/x, ping_time_bins, PREFERRED_COUNT)
+        self.peer_selector = PeerSelector(ping_reference_bins)
+
         self.peer_ranking = []  # Sorted list, based on preference
         self.acceptable_peers = set()  # Peers we want included in our next round
 
@@ -83,12 +90,19 @@ class LatencyCommunity(DiscoveryCommunity):
         print "[DEBUG] I have room for", open_for_proposal_count
         if open_for_proposal_count > 0:
             # Send out proposals
-            available = []
+            options = []
             for peer in self.peer_ranking:
                 if (peer not in self.accepted_proposals
                         and peer not in self.open_proposals):
-                    available.append(peer)
-            self.acceptable_peers = set(available[:open_for_proposal_count])
+                    options.append(Option(peer.get_median_ping(), peer))
+            for _ in range(K_WINDOW):
+                choice = self.peer_selector.decide(options)
+                if choice is not None:
+                    options.remove(choice)
+                if len(self.peer_selector.included) == (PREFERRED_COUNT - len(self.accepted_proposals)
+                                                        - len(self.open_proposals)):
+                    break
+            self.acceptable_peers = [tup.obj for tup in options]
             for peer in self.acceptable_peers:
                 print "[DEBUG] Sending proposal to", str(peer)
                 self.send_proposal(peer)
@@ -139,5 +153,5 @@ class LatencyCommunity(DiscoveryCommunity):
         their_port = source_address[1]
         my_port = self.my_estimated_lan[1]
         from twisted.internet import reactor
-        call = reactor.callLater(abs(my_port-their_port)/10.0, super(LatencyCommunity, self).on_ping, source_address, data)
+        call = reactor.callLater(abs(my_port-their_port)/100.0, super(LatencyCommunity, self).on_ping, source_address, data)
         self.register_anonymous_task("ponglater", call)
