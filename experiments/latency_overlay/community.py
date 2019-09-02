@@ -134,19 +134,29 @@ class LatencyCommunity(DiscoveryCommunity):
     @lazy_wrapper(ProposalAcceptPayload)
     def on_accept_proposal(self, peer, payload):
         self.check_payload(payload)
-        request_cache = self.request_cache.pop(u"proposal-cache",
-                                               ProposalCache.number_from_pk_nonce(peer.mid, payload.nonce))
-        if request_cache:
-            self.accepted_proposals.add(peer)
-            self.open_proposals.remove(peer)
+        try:
+            request_cache = self.request_cache.pop(u"proposal-cache",
+                                                   ProposalCache.number_from_pk_nonce(peer.mid, payload.nonce))
+            if request_cache:
+                self.accepted_proposals.add(peer)
+                self.open_proposals.remove(peer)
+            else:
+                self.logger.debug("Got timed out or unwanted proposal response.")
+        except KeyError:
+            self.logger.debug("Got timed out or unwanted proposal response.")
 
     @lazy_wrapper(ProposalRejectPayload)
     def on_reject_proposal(self, peer, payload):
         self.check_payload(payload)
-        request_cache = self.request_cache.pop(u"proposal-cache",
-                                               ProposalCache.number_from_pk_nonce(peer.mid, payload.nonce))
-        if request_cache:
-            self.open_proposals.remove(peer)
+        try:
+            request_cache = self.request_cache.pop(u"proposal-cache",
+                                                   ProposalCache.number_from_pk_nonce(peer.mid, payload.nonce))
+            if request_cache:
+                self.open_proposals.remove(peer)
+            else:
+                self.logger.debug("Got timed out or unwanted proposal response.")
+        except KeyError:
+            self.logger.debug("Got timed out or unwanted proposal response.")
 
     def on_ping(self, source_address, data):
         # TODO: This is for testing only

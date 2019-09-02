@@ -5,6 +5,7 @@ from twisted.internet.task import LoopingCall
 
 from experiments.latency_overlay.community import LatencyCommunity
 from experiments.latency_overlay.custom_walk import CustomWalk
+from experiments.latency_overlay.random_walk import CustomRandomWalk
 from gumby.experiment import experiment_callback
 from gumby.modules.community_launcher import IPv8CommunityLauncher
 from gumby.modules.community_experiment_module import IPv8OverlayExperimentModule
@@ -39,6 +40,7 @@ class LatencyModule(IPv8OverlayExperimentModule):
     def __init__(self, experiment):
         super(LatencyModule, self).__init__(experiment, LatencyCommunity)
         self.strategies['CustomWalk'] = CustomWalk
+        self.strategies['CustomRandomWalk'] = CustomRandomWalk
         self.ipv8_community_loader.set_launcher(IPv8DiscoveryCommunityLauncher())
         self.head_host = '0.0.0.0'
 
