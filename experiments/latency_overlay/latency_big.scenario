@@ -8,4 +8,4 @@
 @0:35 dump_peer_graph
 @0:240 annotate stop_session
 @0:240 stop_session
-@0:250 stop
+@0:260 stop

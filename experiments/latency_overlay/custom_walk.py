@@ -3,11 +3,12 @@ import time
 from ipv8.peerdiscovery.discovery import DiscoveryStrategy
 
 
-MAX_ROOTS = 50
+MAX_ROOTS = 30
 MAX_EDGE_LENGTH = 6
 MAX_SIMILARITY = 0.05
 NODE_TIMEOUT = 5.0
-STEP_DELAY = 1.0
+STEP_DELAY = 0.1
+GC_DELAY = 10.0
 
 
 class CustomWalk(DiscoveryStrategy):
@@ -18,6 +19,7 @@ class CustomWalk(DiscoveryStrategy):
         self.roots = []
         self.ping_times = {}
         self.last_step = 0.0
+        self.last_gc = 0.0
 
         self.ancestry = {} # Peer introduced by Peer (or None)
         self.leaves = [] # Current edges' HEAD Peer objects
@@ -129,3 +131,9 @@ class CustomWalk(DiscoveryStrategy):
             self.leaves = [leaf for leaf in self.leaves if leaf not in removed_leafs]
 
             self.overlay.peer_ranking = [a[1] for a in sorted((self.get_granular_ping(p), p) for p in self.ancestry)]
+
+            if time.time() - self.last_gc >= GC_DELAY:
+                self.last_gc = time.time()
+                to_remove = [peer for peer in self.overlay.get_peers() if peer not in self.ancestry]
+                for peer in to_remove:
+                    self.overlay.network.remove_peer(peer)
