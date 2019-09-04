@@ -38,9 +38,13 @@ def optimal_choice(references, included, options, falloff=0.2):
 
 class PeerSelector(object):
 
-    def __init__(self, reference_points):
-        self.included = []
-        self._included_values = []
+    def __init__(self, reference_points, included=None):
+        if not included:
+            self.included = []
+            self._included_values = []
+        else:
+            self.included = included
+            self._included_values = [option.value for option in included]
         self.reference = reference_points
 
     def decide(self, options):

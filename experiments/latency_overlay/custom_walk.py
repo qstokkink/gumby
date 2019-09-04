@@ -7,7 +7,6 @@ MAX_ROOTS = 30
 MAX_EDGE_LENGTH = 6
 MAX_SIMILARITY = 0.05
 NODE_TIMEOUT = 5.0
-STEP_DELAY = 0.1
 GC_DELAY = 10.0
 
 
@@ -18,7 +17,6 @@ class CustomWalk(DiscoveryStrategy):
 
         self.roots = []
         self.ping_times = {}
-        self.last_step = 0.0
         self.last_gc = 0.0
 
         self.ancestry = {} # Peer introduced by Peer (or None)
@@ -79,10 +77,6 @@ class CustomWalk(DiscoveryStrategy):
             # 1. Pick peer introduced by bootstrap
             if len(self.roots) < MAX_ROOTS:
                 self.get_root_address()
-
-            if time.time() - self.last_step < STEP_DELAY:
-                return
-            self.last_step = time.time()
 
             # Measure ping in roots, remove dead roots
             for root in self.roots:

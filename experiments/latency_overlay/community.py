@@ -15,7 +15,7 @@ from .peer_selection import Option, PeerSelector, generate_reference
 
 
 PREFERRED_COUNT = 30*2
-K_WINDOW = 10
+K_WINDOW = 60
 
 
 class ProposalPayload(VariablePayload):
@@ -101,7 +101,9 @@ class LatencyCommunity(DiscoveryCommunity):
         # If necessary, send out new proposals
         open_for_proposal_count = PREFERRED_COUNT - len(self.accepted_proposals) - len(self.open_proposals)
         if open_for_proposal_count > 0:
-            peer_selector = PeerSelector(self.ping_reference_bins)
+            peer_selector = PeerSelector(self.ping_reference_bins,
+                                         included=[Option(peer.get_median_ping(), peer)
+                                                   for peer in self.accepted_proposals])
             options = []
             # Only consider peers that are not already accepted or proposed to
             for peer in self.peer_ranking:
