@@ -15,7 +15,7 @@ from .peer_selection import Option, PeerSelector, generate_reference
 
 
 PREFERRED_COUNT = 30*2
-K_WINDOW = 60
+K_WINDOW = 5
 
 
 class ProposalPayload(VariablePayload):
@@ -70,7 +70,7 @@ class LatencyCommunity(DiscoveryCommunity):
     def __init__(self, my_peer, endpoint, network, max_peers=DEFAULT_MAX_PEERS, anonymize=False):
         super(LatencyCommunity, self).__init__(my_peer, endpoint, network, max_peers=max_peers, anonymize=anonymize)
 
-        ping_time_bins = [x/10.0 for x in range(1, 20)]
+        ping_time_bins = [x/100.0 for x in range(10, 200, 10)]
         self.ping_reference_bins = generate_reference(lambda x: 1/x, ping_time_bins, PREFERRED_COUNT)
 
         self.peer_ranking = []  # Sorted list, based on preference
@@ -87,7 +87,7 @@ class LatencyCommunity(DiscoveryCommunity):
         })
 
         self.request_cache.register_task("update_acceptable_peers",
-                                         LoopingCall(self.update_acceptable_peers)).start(2.5, False)
+                                         LoopingCall(self.update_acceptable_peers)).start(10.0, False)
 
     def check_payload(self, payload):
         if payload.peerid != self.my_peer.mid:
@@ -101,9 +101,7 @@ class LatencyCommunity(DiscoveryCommunity):
         # If necessary, send out new proposals
         open_for_proposal_count = PREFERRED_COUNT - len(self.accepted_proposals) - len(self.open_proposals)
         if open_for_proposal_count > 0:
-            peer_selector = PeerSelector(self.ping_reference_bins,
-                                         included=[Option(peer.get_median_ping(), peer)
-                                                   for peer in self.accepted_proposals])
+            peer_selector = PeerSelector(self.ping_reference_bins)
             options = []
             # Only consider peers that are not already accepted or proposed to
             for peer in self.peer_ranking:
@@ -119,12 +117,22 @@ class LatencyCommunity(DiscoveryCommunity):
                 if len(peer_selector.included) == (PREFERRED_COUNT - len(self.accepted_proposals)
                                                         - len(self.open_proposals)):
                     break
-            self.acceptable_peers = [tup.obj for tup in options]
-            for peer in self.acceptable_peers:
+            new_options = [tup.obj for tup in options]
+            for peer in new_options:
                 self.send_proposal(peer)
-        else:
-            # TODO: Possibly in the future we can swap out existing matches with a bad fit.
-            pass
+            self.acceptable_peers = new_options + list(self.open_proposals) + list(self.accepted_proposals)
+        elif PREFERRED_COUNT == len(self.accepted_proposals):
+            peer_selector = PeerSelector(self.ping_reference_bins,
+                                         included=[Option(peer.get_median_ping(), peer)
+                                                   for peer in self.accepted_proposals])
+            worst = peer_selector.current_worst()
+            if worst:
+                self.accepted_proposals.remove(worst)
+                peer = worst.obj
+                auth = BinMemberAuthenticationPayload(self.my_peer.public_key.key_to_bin()).to_pack_list()
+                plist = BreakMatchPayload(time.time() / 10, peer.mid).to_pack_list()
+                packet = self._ez_pack(self._prefix, 8, [auth, plist])
+                self.endpoint.send(peer.address, packet)
 
     def send_proposal(self, peer):
         nonce = generate_nonce()

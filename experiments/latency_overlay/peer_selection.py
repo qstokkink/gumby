@@ -17,23 +17,32 @@ def weighted_pdf(x, X, falloff):
     return unweigthed_pdf(x, X, falloff)/unweigthed_pdf(x, [x], falloff)
 
 
+def get_error(references, included, option, falloff=0.2):
+    errors = []
+    for i in range(len(references)):
+        x, y = references[i]
+        d = weighted_pdf(x, included + ([option.value] if option is not None else []), falloff)
+        e = y - d
+        if d > y:
+            e *= -2
+        errors.append(e)
+    return sum(errors)
+
+
 def optimal_choice(references, included, options, falloff=0.2):
     best_option = None
     best_mse = None
     for option in [None] + options:
-        errors = []
-        for i in range(len(references)):
-            x, y = references[i]
-            d = weighted_pdf(x, included + ([option.value] if option is not None else []), falloff)
-            e = y - d
-            if d > y:
-                e *= -2
-            errors.append(e)
-        mse = sum(errors)
+        mse = get_error(references, included, option, falloff)
         if best_mse is None or mse < best_mse or (best_option is None and mse == best_mse):
             best_option = option
             best_mse = mse
     return best_option
+
+
+def generate_reference(func, x_coords, peer_count):
+    modifier = peer_count/sum(func(x) for x in x_coords)
+    return [ReferenceFuncPoint(x, modifier * func(x)) for x in x_coords]
 
 
 class PeerSelector(object):
@@ -55,7 +64,16 @@ class PeerSelector(object):
             self._included_values.append(choice.value)
         return choice
 
-
-def generate_reference(func, x_coords, peer_count):
-    modifier = peer_count/sum(func(x) for x in x_coords)
-    return [ReferenceFuncPoint(x, modifier * func(x)) for x in x_coords]
+    def current_worst(self):
+        current_worst = None
+        current_worst_mse = None
+        for option in self.included:
+            if option is None:
+                continue
+            values = [self.included[i].value for i in range(len(self.included))
+                      if (i != self.included.index(option) and option is not None)]
+            mse = get_error(self.reference, values, option)
+            if current_worst is None or mse > current_worst_mse:
+                current_worst = option
+                current_worst_mse = mse
+        return current_worst
