@@ -3,8 +3,9 @@ from socket import gethostbyname
 
 from twisted.internet.task import LoopingCall
 
-from experiments.latency_overlay.community import LatencyCommunity
-from experiments.latency_overlay.custom_walk import CustomWalk
+from ipv8.peerdiscovery.latency.community import LatencyCommunity
+from ipv8.peerdiscovery.latency.discovery import LatencyEdgeWalk
+
 from experiments.latency_overlay.random_walk import CustomRandomWalk
 from gumby.experiment import experiment_callback
 from gumby.modules.community_launcher import IPv8CommunityLauncher
@@ -12,10 +13,25 @@ from gumby.modules.community_experiment_module import IPv8OverlayExperimentModul
 from gumby.modules.experiment_module import static_module
 
 
+class TestLatencyCommunity(LatencyCommunity):
+
+    def introduction_response_callback(self, peer, dist, payload):
+        self.walk_to(payload.lan_introduction_address)
+
+    def on_ping(self, source_address, data):
+        # TODO: This is for testing only
+        their_port = source_address[1]
+        my_port = self.my_estimated_lan[1]
+        from twisted.internet import reactor
+        call = reactor.callLater((int(abs(my_port - their_port))%60) * 0.025,
+                                 super(TestLatencyCommunity, self).on_ping, source_address, data)
+        self.register_anonymous_task("ponglater", call)
+
+
 class IPv8DiscoveryCommunityLauncher(IPv8CommunityLauncher):
 
     def get_overlay_class(self):
-        return LatencyCommunity
+        return TestLatencyCommunity
 
     def should_launch(self, session):
         return True
@@ -38,8 +54,8 @@ class LatencyModule(IPv8OverlayExperimentModule):
     """
 
     def __init__(self, experiment):
-        super(LatencyModule, self).__init__(experiment, LatencyCommunity)
-        self.strategies['CustomWalk'] = CustomWalk
+        super(LatencyModule, self).__init__(experiment, TestLatencyCommunity)
+        self.strategies['CustomWalk'] = LatencyEdgeWalk
         self.strategies['CustomRandomWalk'] = CustomRandomWalk
         self.ipv8_community_loader.set_launcher(IPv8DiscoveryCommunityLauncher())
         self.head_host = '0.0.0.0'
@@ -76,8 +92,8 @@ class LatencyModule(IPv8OverlayExperimentModule):
             f.write('ancestor,node,ping\n')
             for strategy_desc in self.ipv8.strategies:
                 strategy, target_peers = strategy_desc
-                if isinstance(strategy, CustomWalk):
-                    ancestry = strategy.get_ancestry()
+                if isinstance(strategy, LatencyEdgeWalk):
+                    ancestry = strategy.ancestry
                     for ancestor in ancestry:
                         ancestor_id = reverse_ids[ancestor.address[1]]
                         node_id = reverse_ids[ancestry[ancestor].address[1]]
@@ -89,7 +105,7 @@ class LatencyModule(IPv8OverlayExperimentModule):
         Write information about all discovered channels away.
         """
         if self.overlay:
-            self.autoplot_add_point("ancestors", len(self.overlay.peer_ranking))
+            self.autoplot_add_point("ancestors", len(self.overlay.possible_peers))
             self.autoplot_add_point("peers", len(self.overlay.get_peers()))
             self.autoplot_add_point("partners", len(self.overlay.accepted_proposals))
         else:
