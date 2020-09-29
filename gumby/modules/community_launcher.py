@@ -270,6 +270,10 @@ class PopularityCommunityLauncher(IPv8CommunityLauncher):
     def get_kwargs(self, session):
         return {'metadata_store': session.mds, 'torrent_checker': session.torrent_checker}
 
+    def finalize(self, ipv8, session, community):
+        super(PopularityCommunityLauncher, self).finalize(ipv8, session, community)
+        session.popularity_community = community
+
 
 class DHTCommunityLauncher(IPv8CommunityLauncher):
 
