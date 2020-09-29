@@ -1,0 +1,12 @@
+&module gumby.modules.tribler_module.TriblerModule
+&module experiments.wildpopularity.wild_popularity_module.WildPopularityModule
+
+# The target peers count for the overlay
+@0:1 add_walking_strategy RandomWalk 20
+
+# Check every 5 seconds for the torrent list
+@0:5 start_check 5
+
+# Create the Tribler session and annotate the experiment start
+@0:0 start_session
+@0:5 annotate start-experiment
